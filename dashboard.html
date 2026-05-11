@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creové Admin Dashboard</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="dashboard-style.css">
+</head>
+<body>
+
+    <!-- ===================== LOGIN OVERLAY ===================== -->
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-box">
+            <img src="logo.png" alt="Creove Logo" style="width: 60px; border-radius: 50%; margin-bottom: 15px;">
+            <h2>Login Admin</h2>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
+                Masukkan PIN akses Creové Dashboard
+            </p>
+            <input type="password" id="pinInput" placeholder="••••••" autocomplete="off">
+            <button id="btnLogin" class="btn-login">Masuk</button>
+            <p id="loginError" style="color: #EF4444; font-size: 13px; margin-top: 10px; display: none;">
+                PIN salah!
+            </p>
+        </div>
+    </div>
+
+    <!-- ===================== MAIN DASHBOARD ===================== -->
+    <div class="dashboard-container">
+
+        <!-- Header -->
+        <div class="header">
+            <h1 style="display: flex; align-items: center; gap: 12px;">
+                <img src="logo.png" alt="Logo Creove" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;">
+                Creové Dashboard
+            </h1>
+            <div style="display: flex; gap: 10px;">
+                <button class="refresh-btn" id="themeToggle" style="background-color: #1F2937;">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button class="refresh-btn" id="refreshBtn">
+                    <i class="fas fa-sync-alt"></i> Refresh Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-icon"><i class="fas fa-shopping-bag"></i></div>
+                <div class="summary-info">
+                    <h3>Total Pesanan</h3>
+                    <p id="totalOrders">0</p>
+                </div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-icon"><i class="fas fa-wallet"></i></div>
+                <div class="summary-info">
+                    <h3>Total Pendapatan</h3>
+                    <p id="totalRevenue">Rp 0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table Section -->
+        <div class="table-container">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+                <h2 style="margin-bottom: 0;">Daftar Pesanan Terbaru</h2>
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Cari nama, order ID, dll...">
+                </div>
+            </div>
+
+            <!-- Filter Tabs -->
+            <div class="filter-tabs" id="filterTabs">
+                <button class="tab-btn active" data-status="all">Semua</button>
+                <button class="tab-btn" data-status="Pending">Pending</button>
+                <button class="tab-btn" data-status="Diproses">Diproses</button>
+                <button class="tab-btn" data-status="Selesai">Selesai</button>
+                <button class="tab-btn" data-status="Batal">Batal</button>
+            </div>
+
+            <!-- Orders Table -->
+            <table>
+                <thead>
+                    <tr>
+                        <th>Waktu</th>
+                        <th>Order ID</th>
+                        <th>Nama Pemesan</th>
+                        <th>Pesanan</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Hubungi</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr>
+                        <td colspan="7" class="loading">
+                            <i class="fas fa-spinner fa-spin"></i> Memuat data dari server...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            <div id="paginationContainer" class="pagination-container">
+                <div class="pagination-info" id="pageInfo">Menampilkan 0-0 dari 0 data</div>
+                <div class="pagination-controls" id="pageControls"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ===================== CUSTOM STATUS MODAL ===================== -->
+    <div id="customPromptModal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h3><i class="fas fa-edit" style="color: var(--accent);"></i> Ketik Status Baru</h3>
+            <p>Masukkan status pesanan secara manual (Contoh: Sedang Dikemas, Retur, dll):</p>
+            <input type="text" id="customStatusInput" placeholder="Ketik di sini..." autocomplete="off">
+            <div class="modal-actions">
+                <button id="btnCancelCustom" class="btn-cancel">Batal</button>
+                <button id="btnSaveCustom" class="btn-save">Simpan Status</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="receiptPreviewModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width: 400px; text-align: center;">
+            <h3><i class="fas fa-receipt" style="color: #8B5CF6;"></i> Preview Struk</h3>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">Periksa kembali detail pesanan sebelum di-download.</p>
+            
+            <div style="margin-bottom: 20px; max-height: 50vh; overflow-y: auto; border: 1px solid #EDF2F7; border-radius: 8px; padding: 10px; background: #F9FAFB;">
+                <img id="receiptPreviewImg" src="" alt="Preview Struk" style="width: 100%; height: auto; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            </div>
+            
+            <div class="modal-actions" style="justify-content: center; gap: 10px;">
+                <button id="btnCloseReceipt" class="btn-cancel">Tutup</button>
+                <button id="btnDownloadReceiptReal" class="btn-save" style="background-color: #8B5CF6;"><i class="fas fa-download"></i> Download Gambar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== TOAST CONTAINER ===================== -->
+    <div id="toastContainer"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <div id="receiptTemplate" class="receipt-download-area">
+    <div style="text-align: center; margin-bottom: 20px;">
+        <img src="logo.png" alt="Logo" style="width: 50px; border-radius: 50%;">
+        <h2 style="margin: 5px 0; color: #1F2937;">CREOVÉ</h2>
+        <p style="font-size: 12px; color: #6B7280;">Bukti Pesanan Resmi</p>
+    </div>
+    <div style="font-size: 13px; color: #374151;">
+        <p><strong>Order ID:</strong> <span id="r-orderId"></span></p>
+        <p><strong>Tanggal:</strong> <span id="r-waktu"></span></p>
+        <p><strong>Nama:</strong> <span id="r-nama"></span></p>
+    </div>
+    <hr style="border: none; border-top: 1px dashed #D1D5DB; margin: 15px 0;">
+    <div style="font-size: 13px;">
+        <p><strong>Detail Pesanan:</strong></p>
+        <div id="r-pesanan" style="white-space: pre-line; background: #F9FAFB; padding: 10px; border-radius: 6px;"></div>
+    </div>
+    <hr style="border: none; border-top: 1px dashed #D1D5DB; margin: 15px 0;">
+    <div style="text-align: center;">
+        <h3 id="r-total" style="color: #1F2937; margin: 0;"></h3>
+        <p style="font-size: 11px; color: #9CA3AF; margin-top: 10px;">Terima kasih telah memesan!</p>
+    </div>
+</div>
+
+    <script src="dashboard-script.js"></script>
+
+
+</body>
+</html>
