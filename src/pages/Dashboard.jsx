@@ -821,7 +821,7 @@ Pembayaran: ${manualForm.pembayaran}`;
         <div className="top-nav-actions">
           <button onClick={toggleTheme} className="btn-outline-icon" title="Ganti tema"><i className={theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon'}></i></button>
           <button onClick={() => setIsAddModalOpen(true)} className="btn-primary-action">
-            <i className="fas fa-plus"></i> Pesanan WA
+            <i className="fas fa-plus"></i> Tambah Pesanan
           </button>
           <button onClick={() => loadData({ notifySuccess: true })} className="btn-outline-primary"><i className="fas fa-sync-alt"></i> Refresh</button>
         </div>
@@ -1037,95 +1037,115 @@ Pembayaran: ${manualForm.pembayaran}`;
       {/* MODAL TAMBAH PESANAN WA */}
       {isAddModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-box order-modal">
-            <h3 className="modal-title"><i className="fas fa-cart-plus"></i> Tambah Pesanan Baru</h3>
-            <div className="form-group-manual">
-                <label>Nama Pemesan</label>
-                <input type="text" name="nama" value={manualForm.nama} onChange={handleFormChange} placeholder="Masukkan Nama Customer" />
+          <div className="modal-box order-modal themed-order-modal">
+            <div className="order-modal-hero">
+              <div className="order-modal-heading">
+                <span className="order-modal-icon"><i className="fas fa-cart-plus"></i></span>
+                <div>
+                  <span className="order-modal-kicker">Creove Order</span>
+                  <h3 className="modal-title">Tambah Pesanan Baru</h3>
+                </div>
+              </div>
+              <img src="/logo.png" alt="" className="order-modal-logo" aria-hidden="true" />
+            </div>
+
+            <div className="form-group-manual order-form-body">
+                <div className="field-stack">
+                  <label>Nama Pemesan</label>
+                  <input type="text" name="nama" value={manualForm.nama} onChange={handleFormChange} placeholder="Masukkan Nama Customer" />
+                </div>
                 
                 {/* PERBAIKAN: FORM TANGGAL DAN JAM */}
                 <div className="form-row">
-                    <div>
+                    <div className="field-stack">
                         <label>Tanggal</label>
                         <input type="date" name="tanggal" value={manualForm.tanggal} onChange={handleFormChange} />
                     </div>
-                    <div>
+                    <div className="field-stack">
                         <label>Jam</label>
                         <input type="time" name="jam" value={manualForm.jam} onChange={handleFormChange} />
                     </div>
                 </div>
 
-                <div className="form-row" style={{ alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                    <label style={{ marginBottom: 0 }}>Daftar Produk</label>
-                    <button type="button" onClick={addOrderItem} className="btn-cancel" style={{ padding: '8px 12px' }}>
-                      + Tambah Produk
+                <div className="product-section-header">
+                    <label>Daftar Produk</label>
+                    <button type="button" onClick={addOrderItem} className="btn-add-product">
+                      <i className="fas fa-plus"></i>
+                      <span>Tambah Produk</span>
                     </button>
                 </div>
 
-                <div style={{ display: 'grid', gap: 12 }}>
+                <div className="order-item-list">
                   {manualForm.items.map((item, index) => (
-                    <div key={index} style={{ padding: 12, border: '1px solid #E5E7EB', borderRadius: 14, background: '#FAFAFB' }}>
-                      <div className="form-row">
-                        <div style={{ flex: 1 }}>
-                          <label>Produk</label>
-                          <select value={item.produk} onChange={e => handleItemChange(index, 'produk', e.target.value)}>
-                            {PRODUCT_OPTIONS.map(product => (
-                              <option key={product} value={product}>{product}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div style={{ width: 120 }}>
-                          <label>Qty</label>
-                          <input type="number" value={item.qty} onChange={e => handleItemChange(index, 'qty', e.target.value)} min="1" />
-                        </div>
+                    <div key={index} className="order-item-card">
+                      <div className="order-item-media">
+                        <img src={RECEIPT_ITEM_IMAGE_MAP[item.produk]} alt={item.produk} />
+                        <span>#{index + 1}</span>
                       </div>
 
-                      <div className="form-row" style={{ alignItems: 'end' }}>
-                        <div style={{ flex: 1 }}>
-                          <label>Harga Template (Rp)</label>
-                          <input type="text" value={formatRupiah(parseCurrencyValue(item.harga))} disabled />
-                          {item.produk === 'Signature Layered Oreo' && (
-                            <div style={{ marginTop: 6, fontSize: 12, color: '#6B7280' }}>
-                              1 pcs = Rp 10.000, 3 pcs = Rp 25.000
-                            </div>
-                          )}
+                      <div className="order-item-content">
+                        <div className="form-row order-item-grid">
+                          <div className="field-stack">
+                            <label>Produk</label>
+                            <select value={item.produk} onChange={e => handleItemChange(index, 'produk', e.target.value)}>
+                              {PRODUCT_OPTIONS.map(product => (
+                                <option key={product} value={product}>{product}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="field-stack qty-field">
+                            <label>Qty</label>
+                            <input type="number" value={item.qty} onChange={e => handleItemChange(index, 'qty', e.target.value)} min="1" />
+                          </div>
                         </div>
-                        <div style={{ width: 120, display: 'flex', justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            onClick={() => removeOrderItem(index)}
-                            disabled={manualForm.items.length === 1}
-                            className="btn-cancel"
-                            style={{ width: '100%', padding: '10px 12px', opacity: manualForm.items.length === 1 ? 0.5 : 1 }}
-                          >
-                            Hapus
-                          </button>
+
+                        <div className="form-row order-price-row">
+                          <div className="field-stack">
+                            <label>Harga Template (Rp)</label>
+                            <input type="text" value={formatRupiah(parseCurrencyValue(item.harga))} disabled />
+                            {item.produk === 'Signature Layered Oreo' && (
+                              <div className="product-price-note">
+                                1 pcs = Rp 10.000, 3 pcs = Rp 25.000
+                              </div>
+                            )}
+                          </div>
+                          <div className="remove-item-wrap">
+                            <button
+                              type="button"
+                              onClick={() => removeOrderItem(index)}
+                              disabled={manualForm.items.length === 1}
+                              className="btn-remove-product"
+                            >
+                              <i className="fas fa-trash"></i>
+                              <span>Hapus</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="form-row">
-                    <div>
-                      <label>Total Harga (Rp)</label>
-                      <input type="text" value={formatRupiah(manualOrderTotal)} disabled />
+                <div className="order-summary-strip">
+                    <div className="order-summary-pill">
+                      <span>Total Harga</span>
+                      <strong>{formatRupiah(manualOrderTotal)}</strong>
                     </div>
-                    <div>
-                      <label>Total Item</label>
-                      <input type="text" value={`${manualForm.items.length} item`} disabled />
+                    <div className="order-summary-pill">
+                      <span>Total Item</span>
+                      <strong>{manualForm.items.length} item</strong>
                     </div>
                 </div>
 
                 <div className="form-row">
-                    <div><label>Pengantaran</label>
+                    <div className="field-stack"><label>Pengantaran</label>
                       <select name="pengantaran" value={manualForm.pengantaran} onChange={handleFormChange}>
                         <option value="Pick up">Pick up (Ambil Sendiri)</option>
                         <option value="Delivery">COD (Area Sekitar)</option>
                         <option value="Kurir (Free)">Kurir (Free)</option>
                       </select>
                     </div>
-                    <div><label>Pembayaran</label>
+                    <div className="field-stack"><label>Pembayaran</label>
                       <select name="pembayaran" value={manualForm.pembayaran} onChange={handleFormChange}>
                         <option value="Cash">Cash</option>
                         <option value="Transfer">Transfer</option>
@@ -1135,14 +1155,16 @@ Pembayaran: ${manualForm.pembayaran}`;
                 </div>
                 { (manualForm.pengantaran === 'Delivery' || manualForm.pengantaran === 'Kurir (Free)') && (
                   <div className="form-row">
-                    <div style={{ gridColumn: '1 / -1' }}>
+                    <div className="field-stack full-width-field">
                       <label>Alamat Pengantaran</label>
                       <input type="text" name="alamat" value={manualForm.alamat} onChange={handleFormChange} placeholder="Masukkan alamat lengkap untuk pengantaran" />
                     </div>
                   </div>
                 )}
-                <label>Nomor WhatsApp</label>
-                <input type="text" name="wa" value={manualForm.wa} onChange={handleFormChange} placeholder="(Opsional)" />
+                <div className="field-stack">
+                  <label>Nomor WhatsApp</label>
+                  <input type="text" name="wa" value={manualForm.wa} onChange={handleFormChange} placeholder="(Opsional)" />
+                </div>
             </div>
 
             <div className="modal-actions modal-actions-spaced">
