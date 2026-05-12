@@ -318,6 +318,7 @@ export default function Dashboard({ theme, toggleTheme }) {
   const [currentTab, setCurrentTab] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [dateFilter, setDateFilter] = useState(() => getDateRange('all'));
+  const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
   const [newOrderNotice, setNewOrderNotice] = useState(null);
   const [toasts, setToasts] = useState([]);
   const knownOrderIdsRef = useRef(new Set());
@@ -429,6 +430,14 @@ export default function Dashboard({ theme, toggleTheme }) {
 
     return () => window.clearInterval(intervalId);
   }, [loadData]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   // Lock background scroll when any modal is open (add / edit / receipt)
   useEffect(() => {
@@ -814,23 +823,62 @@ Pembayaran: ${manualForm.pembayaran}`;
   const totalPages = Math.ceil(filteredOrders.length / ROWS_PER_PAGE) || 1;
   const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
   const paginatedOrders = filteredOrders.slice((safeCurrentPage - 1) * ROWS_PER_PAGE, safeCurrentPage * ROWS_PER_PAGE);
+  const dashboardDateLabel = new Intl.DateTimeFormat('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: APP_TIME_ZONE
+  }).format(currentDateTime);
+  const dashboardTimeLabel = new Intl.DateTimeFormat('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: APP_TIME_ZONE
+  }).format(currentDateTime).replace(/\./g, ':');
+  const dashboardHour = Number(new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    hour12: false,
+    timeZone: APP_TIME_ZONE
+  }).format(currentDateTime));
+  const dashboardGreeting = dashboardHour < 12
+    ? 'Good morning'
+    : dashboardHour < 17
+      ? 'Good afternoon'
+      : 'Good evening';
 
   return (
     <>
     <ToastStack toasts={toasts} />
     <div className="dashboard-container">
       {/* HEADER NAVBAR */}
-      <div className="header top-nav">
-        <h1 className="brand-title">
-          <img src="/logo.png" alt="Logo Creove" className="brand-logo" />
-          Creove Dashboard
-        </h1>
-        <div className="top-nav-actions">
-          <button onClick={toggleTheme} className="btn-outline-icon" title="Ganti tema"><i className={theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon'}></i></button>
-          <button onClick={() => setIsAddModalOpen(true)} className="btn-primary-action">
-            <i className="fas fa-plus"></i> Tambah Pesanan
-          </button>
-          <button onClick={() => loadData({ notifySuccess: true })} className="btn-outline-primary"><i className="fas fa-sync-alt"></i> Refresh</button>
+      <div className="dashboard-header-panel">
+        <div className="header top-nav">
+          <h1 className="brand-title">
+            <span className="brand-logo-mark" role="img" aria-label="Logo Creove"></span>
+            Creov&eacute; Dashboard
+          </h1>
+          <div className="top-nav-actions">
+            <button onClick={toggleTheme} className="btn-outline-icon header-icon-btn" title="Ganti tema" aria-label="Ganti tema">
+              <i className={theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon'}></i>
+            </button>
+            <button onClick={() => loadData({ notifySuccess: true })} className="btn-outline-primary header-refresh-btn">
+              <i className="fas fa-sync-alt"></i>
+              <span>Refresh Data</span>
+            </button>
+          </div>
+        </div>
+        <div className="dashboard-greeting-bar">
+          <div className="dashboard-greeting-copy">
+            <h2>{dashboardGreeting}, Admin <span aria-hidden="true">{'\u{1F44B}'}</span></h2>
+            <p>Berikut ringkasan pesanan dan pendapatan hari ini.</p>
+          </div>
+          <div className="dashboard-date-pill">
+            <i className="far fa-calendar"></i>
+            <span>{dashboardDateLabel}</span>
+            <span className="dashboard-time-separator">{'\u2022'}</span>
+            <span className="dashboard-time-label">{dashboardTimeLabel}</span>
+          </div>
         </div>
       </div>
 
@@ -879,18 +927,24 @@ Pembayaran: ${manualForm.pembayaran}`;
       </div>
 
       <div className="insight-grid">
-        <div className="insight-panel">
+        <div className="insight-panel top-products-panel">
           <div className="insight-heading">
-            <h3>Produk Terlaris</h3>
-            <span>Tidak termasuk pesanan batal</span>
+            <span className="insight-heading-icon"><i className="fas fa-ranking-star"></i></span>
+            <div>
+              <h3>Produk Terlaris</h3>
+              <span>Tidak termasuk pesanan batal</span>
+            </div>
           </div>
           {topProducts.length > 0 ? (
             <div className="top-product-list">
               {topProducts.map((product, index) => (
                 <div key={product.name} className="top-product-item">
                   <span className="product-rank">{index + 1}</span>
-                  <span className="product-name">{product.name}</span>
-                  <strong>{product.qty} pcs</strong>
+                  <div className="product-copy">
+                    <span className="product-name">{product.name}</span>
+                    <small>Terjual</small>
+                  </div>
+                  <strong><span>{product.qty}</span> pcs</strong>
                 </div>
               ))}
             </div>
@@ -904,13 +958,18 @@ Pembayaran: ${manualForm.pembayaran}`;
       <div className="table-container">
         <div className="table-toolbar">
           <h2>Daftar Pesanan Terbaru</h2>
-          <div className="search-box"><i className="fas fa-search"></i>
-            <input 
-              type="text" 
-              placeholder="Cari nama, order ID..." 
-              value={currentSearch} 
-              onChange={e => {setCurrentSearch(e.target.value); setCurrentPage(1);}} 
-            />
+          <div className="table-toolbar-actions">
+            <button onClick={() => setIsAddModalOpen(true)} className="btn-primary-action">
+              <i className="fas fa-plus"></i> Tambah Pesanan
+            </button>
+            <div className="search-box"><i className="fas fa-search"></i>
+              <input
+                type="text"
+                placeholder="Cari nama, order ID..."
+                value={currentSearch}
+                onChange={e => {setCurrentSearch(e.target.value); setCurrentPage(1);}}
+              />
+            </div>
           </div>
         </div>
 
