@@ -222,6 +222,13 @@ const getReceiptField = (order, fieldName, fallback = '-') => {
   return match?.[1]?.trim() || fallback;
 };
 
+const getReceiptAddress = (order) => {
+  const directAddress = order?.ALAMAT || order?.Alamat || order?.alamat || order?.ADDRESS || order?.Address || order?.address;
+  if (directAddress && String(directAddress).trim()) return String(directAddress).trim();
+
+  return getReceiptField(order, 'Alamat', '');
+};
+
 const getReceiptItems = (order) => {
   const orderTotal = parseCurrencyValue(order?.['TOTAL HARGA']);
   const items = String(order?.['PESANAN'] || '')
@@ -1239,6 +1246,7 @@ Pembayaran: ${manualForm.pembayaran}`;
           const receiptTotal = formatReceiptCurrency(activeReceiptOrder['TOTAL HARGA']);
           const pengantaran = getReceiptField(activeReceiptOrder, 'Pengantaran', 'Pick up');
           const pembayaran = getReceiptField(activeReceiptOrder, 'Pembayaran', 'Cash');
+          const alamat = getReceiptAddress(activeReceiptOrder);
 
           return (
             <div ref={receiptRef} className="receipt-modern-container">
@@ -1249,7 +1257,7 @@ Pembayaran: ${manualForm.pembayaran}`;
 
               <div className="receipt-header">
                 <div className="receipt-logo-orbit">
-                  <img src="/logo.png" alt="Logo Creove" className="receipt-logo-main" />
+                  <span className="receipt-logo-main" role="img" aria-label="Logo Creove"></span>
                 </div>
                 <div className="receipt-spark receipt-spark-left" aria-hidden="true"></div>
                 <div className="receipt-spark receipt-spark-right" aria-hidden="true"></div>
@@ -1304,6 +1312,7 @@ Pembayaran: ${manualForm.pembayaran}`;
                   <span className="receipt-icon-bubble"><i className="fas fa-motorcycle"></i></span>
                   <span>Pengantaran</span>
                   <strong>{pengantaran}</strong>
+                  {alamat && <small className="receipt-method-note">Alamat: {alamat}</small>}
                 </div>
                 <div className="receipt-method-item">
                   <span className="receipt-icon-bubble"><i className="fas fa-wallet"></i></span>
