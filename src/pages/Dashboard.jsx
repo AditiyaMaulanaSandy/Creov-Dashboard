@@ -194,6 +194,24 @@ const renderOrderLine = (line) => {
 
 const formatReceiptCurrency = (value) => formatRupiah(parseCurrencyValue(value)).replace(/^Rp/, 'Rp ');
 
+const readApiResult = async (response) => {
+  let result = null;
+
+  try {
+    result = await response.json();
+  } catch {
+    // Some Apps Script responses are empty even when the request succeeds.
+  }
+
+  if (!response.ok || result?.result === 'error' || result?.status === 'error') {
+    throw new Error(result?.message || 'Request gagal');
+  }
+
+  return result || {};
+};
+
+const isSuccessResult = (result) => result.result === 'success' || result.status === 'success';
+
 const getReceiptField = (order, fieldName, fallback = '-') => {
   const pattern = new RegExp(`^${fieldName}\\s*:\\s*(.+)$`, 'i');
   const match = String(order?.['PESANAN'] || '')
@@ -261,6 +279,31 @@ function ReceiptItemVisual({ itemName }) {
   );
 }
 
+function ToastStack({ toasts }) {
+  const iconMap = {
+    success: 'fas fa-check',
+    error: 'fas fa-triangle-exclamation',
+    warning: 'fas fa-circle-exclamation',
+    info: 'fas fa-circle-info'
+  };
+
+  return (
+    <div className="toast-stack" aria-live="polite" aria-atomic="true">
+      {toasts.map(toast => (
+        <div className={`toast-card toast-${toast.type}`} key={toast.id}>
+          <span className="toast-icon">
+            <i className={iconMap[toast.type] || iconMap.info}></i>
+          </span>
+          <div className="toast-copy">
+            <strong>{toast.title}</strong>
+            {toast.message && <span>{toast.message}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Dashboard({ theme, toggleTheme }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -269,8 +312,10 @@ export default function Dashboard({ theme, toggleTheme }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [dateFilter, setDateFilter] = useState(() => getDateRange('all'));
   const [newOrderNotice, setNewOrderNotice] = useState(null);
+  const [toasts, setToasts] = useState([]);
   const knownOrderIdsRef = useRef(new Set());
   const hasLoadedOnceRef = useRef(false);
+  const toastTimersRef = useRef([]);
   
   // States Modal Struk
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
@@ -297,7 +342,31 @@ export default function Dashboard({ theme, toggleTheme }) {
     jam: ''
   });
 
-  const loadData = useCallback(async ({ silent = false } = {}) => {
+  const dismissToast = useCallback((toastId) => {
+    setToasts(prev => prev.filter(toast => toast.id !== toastId));
+  }, []);
+
+  const showToast = useCallback(({ type = 'info', title, message }) => {
+    const toastId = `${Date.now()}-${Math.random()}`;
+
+    setToasts(prev => [...prev, { id: toastId, type, title, message }].slice(-4));
+
+    const timerId = window.setTimeout(() => {
+      dismissToast(toastId);
+    }, 4200);
+
+    toastTimersRef.current.push(timerId);
+  }, [dismissToast]);
+
+  useEffect(() => {
+    const toastTimers = toastTimersRef.current;
+
+    return () => {
+      toastTimers.forEach(timerId => window.clearTimeout(timerId));
+    };
+  }, []);
+
+  const loadData = useCallback(async ({ silent = false, notifySuccess = false } = {}) => {
     if (!silent) setLoading(true);
     try {
       const data = await fetchOrders();
@@ -317,14 +386,26 @@ export default function Dashboard({ theme, toggleTheme }) {
       knownOrderIdsRef.current = incomingIds;
       hasLoadedOnceRef.current = true;
       setOrders(data);
+
+      if (notifySuccess) {
+        showToast({
+          type: 'success',
+          title: 'Data sudah diperbarui',
+          message: `${data.length} pesanan berhasil dimuat.`
+        });
+      }
     } catch {
       if (!silent) {
-        alert('Gagal menarik data dari server. Pastikan koneksi internet lancar dan Google Script ter-deploy.');
+        showToast({
+          type: 'error',
+          title: 'Gagal menarik data',
+          message: 'Pastikan koneksi internet lancar dan Google Script sudah ter-deploy.'
+        });
       }
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -364,9 +445,19 @@ export default function Dashboard({ theme, toggleTheme }) {
     // Optimistic UI update (Langsung ganti di layar agar terasa responsif)
     setOrders(prev => prev.map(o => (o['ORDER ID'] === orderId) ? { ...o, STATUS: newStatus } : o));
     try {
-      await updateOrderStatusAPI(orderId, newStatus);
+      const response = await updateOrderStatusAPI(orderId, newStatus);
+      await readApiResult(response);
+      showToast({
+        type: 'success',
+        title: 'Status tersimpan',
+        message: `${orderId} diubah ke ${newStatus}.`
+      });
     } catch {
-      alert('Gagal update status di server!');
+      showToast({
+        type: 'error',
+        title: 'Gagal update status',
+        message: 'Perubahan dibatalkan, data akan dimuat ulang.'
+      });
       loadData(); // Rollback kalau gagal
     }
   };
@@ -416,22 +507,38 @@ export default function Dashboard({ theme, toggleTheme }) {
     const validItems = manualForm.items.filter(item => item.produk && Number(item.qty) > 0 && parseCurrencyValue(item.harga) > 0);
 
     if (!manualForm.nama || validItems.length === 0 || !manualForm.tanggal || !manualForm.jam) {
-      alert('Mohon lengkapi nama, item pesanan, tanggal, dan jam!');
+      showToast({
+        type: 'warning',
+        title: 'Data belum lengkap',
+        message: 'Lengkapi nama, item pesanan, tanggal, dan jam.'
+      });
       return;
     }
 
     if (validItems.length !== manualForm.items.length) {
-      alert('Pastikan setiap item punya produk, qty, dan harga yang valid.');
+      showToast({
+        type: 'warning',
+        title: 'Item belum valid',
+        message: 'Pastikan setiap item punya produk, qty, dan harga.'
+      });
       return;
     }
 
     if (manualOrderTotal <= 0) {
-      alert('Total harga pesanan belum valid.');
+      showToast({
+        type: 'warning',
+        title: 'Total belum valid',
+        message: 'Total harga pesanan masih kosong atau nol.'
+      });
       return;
     }
 
     if ((manualForm.pengantaran === 'Delivery' || manualForm.pengantaran === 'Kurir (Free)') && !manualForm.alamat) {
-      alert('Mohon isi alamat pengantaran untuk pilihan COD atau Kurir.');
+      showToast({
+        type: 'warning',
+        title: 'Alamat dibutuhkan',
+        message: 'Isi alamat pengantaran untuk COD atau Kurir.'
+      });
       return;
     }
 
@@ -476,17 +583,29 @@ Pembayaran: ${manualForm.pembayaran}`;
 
     try {
       const response = await addOrderAPI(orderData);
-      const result = await response.json();
-      if (result.result === 'success') {
-        alert('Pesanan WA berhasil ditambahkan!');
+      const result = await readApiResult(response);
+      if (isSuccessResult(result)) {
+        showToast({
+          type: 'success',
+          title: 'Pesanan ditambahkan',
+          message: `${newOrderId} berhasil disimpan.`
+        });
         setIsAddModalOpen(false);
         setManualForm(createManualOrderForm());
         loadData();
       } else {
-        alert('Gagal menyimpan ke server.');
+        showToast({
+          type: 'error',
+          title: 'Gagal menyimpan',
+          message: 'Server belum mengembalikan status sukses.'
+        });
       }
     } catch {
-      alert('Koneksi terputus saat menyimpan data!');
+      showToast({
+        type: 'error',
+        title: 'Koneksi terputus',
+        message: 'Pesanan belum berhasil disimpan.'
+      });
     } finally {
       setSavingOrder(false);
     }
@@ -502,7 +621,11 @@ Pembayaran: ${manualForm.pembayaran}`;
         setReceiptData({ url: canvas.toDataURL("image/png"), filename: `Receipt_${order['ORDER ID']}_Creove.png` });
         setIsReceiptModalOpen(true);
       } catch {
-        alert('Gagal membuat preview struk');
+        showToast({
+          type: 'error',
+          title: 'Gagal membuat struk',
+          message: 'Coba buka preview struk beberapa saat lagi.'
+        });
       }
     }, 100);
   };
@@ -515,6 +638,7 @@ Pembayaran: ${manualForm.pembayaran}`;
     
     let cleanPhone = String(rawWA).replace(/\D/g, '');
     if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.substring(1);
+    if (cleanPhone.startsWith('8')) cleanPhone = '62' + cleanPhone;
     
     if (cleanPhone.length < 8) return null;
 
@@ -541,8 +665,14 @@ Pembayaran: ${manualForm.pembayaran}`;
   };
 
   const handleSaveEdit = async () => {
-    if (!editForm.orderId || !editForm.nama || !editForm.total || !editForm.tanggal || !editForm.jam) {
-      alert('Mohon lengkapi data edit pesanan.');
+    const editTotal = parseCurrencyValue(editForm.total);
+
+    if (!editForm.orderId || !editForm.nama || editTotal <= 0 || !editForm.tanggal || !editForm.jam) {
+      showToast({
+        type: 'warning',
+        title: 'Data edit belum lengkap',
+        message: 'Lengkapi nama, total, tanggal, dan jam.'
+      });
       return;
     }
 
@@ -554,22 +684,35 @@ Pembayaran: ${manualForm.pembayaran}`;
       WAKTU: strWaktu,
       nama: editForm.nama,
       pesanan: editForm.pesanan,
-      total: editForm.total,
+      total: editTotal,
       wa: editForm.wa,
       status: editForm.status
     };
 
     try {
       const response = await editOrderAPI(editData);
-      const result = await response.json();
-      if (result.result === 'success') {
+      const result = await readApiResult(response);
+      if (isSuccessResult(result)) {
+        showToast({
+          type: 'success',
+          title: 'Pesanan diperbarui',
+          message: `${editForm.orderId} berhasil diedit.`
+        });
         setIsEditModalOpen(false);
         await loadData();
       } else {
-        alert('Gagal mengedit pesanan. Pastikan Apps Script sudah mendukung action editOrder.');
+        showToast({
+          type: 'error',
+          title: 'Gagal mengedit',
+          message: 'Pastikan Apps Script sudah mendukung action editOrder.'
+        });
       }
     } catch {
-      alert('Koneksi terputus saat mengedit data!');
+      showToast({
+        type: 'error',
+        title: 'Koneksi terputus',
+        message: 'Perubahan pesanan belum berhasil disimpan.'
+      });
     } finally {
       setSavingEdit(false);
     }
@@ -661,10 +804,13 @@ Pembayaran: ${manualForm.pembayaran}`;
     return matchedKey || '';
   }, [dateFilter]);
 
-  const paginatedOrders = filteredOrders.slice((currentPage - 1) * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE);
   const totalPages = Math.ceil(filteredOrders.length / ROWS_PER_PAGE) || 1;
+  const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+  const paginatedOrders = filteredOrders.slice((safeCurrentPage - 1) * ROWS_PER_PAGE, safeCurrentPage * ROWS_PER_PAGE);
 
   return (
+    <>
+    <ToastStack toasts={toasts} />
     <div className="dashboard-container">
       {/* HEADER NAVBAR */}
       <div className="header top-nav">
@@ -677,7 +823,7 @@ Pembayaran: ${manualForm.pembayaran}`;
           <button onClick={() => setIsAddModalOpen(true)} className="btn-primary-action">
             <i className="fas fa-plus"></i> Pesanan WA
           </button>
-          <button onClick={loadData} className="btn-outline-primary"><i className="fas fa-sync-alt"></i> Refresh</button>
+          <button onClick={() => loadData({ notifySuccess: true })} className="btn-outline-primary"><i className="fas fa-sync-alt"></i> Refresh</button>
         </div>
       </div>
 
@@ -866,8 +1012,8 @@ Pembayaran: ${manualForm.pembayaran}`;
         {/* PAGINATION CONTROLS */}
         <div className="pagination-container">
              <button
-               disabled={currentPage === 1}
-               onClick={() => setCurrentPage(p => p - 1)}
+               disabled={safeCurrentPage === 1}
+               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                className="page-btn"
                aria-label="Halaman sebelumnya"
              >
@@ -875,11 +1021,11 @@ Pembayaran: ${manualForm.pembayaran}`;
              </button>
              <div className="page-indicator">
                <span>Halaman</span>
-               <strong>{currentPage} / {totalPages}</strong>
+               <strong>{safeCurrentPage} / {totalPages}</strong>
              </div>
              <button
-               disabled={currentPage === totalPages}
-               onClick={() => setCurrentPage(p => p + 1)}
+               disabled={safeCurrentPage === totalPages}
+               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                className="page-btn"
                aria-label="Halaman selanjutnya"
              >
@@ -1195,5 +1341,6 @@ Pembayaran: ${manualForm.pembayaran}`;
         </div>
       )}
     </div>
+    </>
   );
 }
