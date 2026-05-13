@@ -50,6 +50,8 @@ export default function Dashboard({ theme, toggleTheme }) {
   const [orders, setOrders] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [expenseLoading, setExpenseLoading] = useState(false);
+  const [hasLoadedExpenses, setHasLoadedExpenses] = useState(false);
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -177,14 +179,43 @@ export default function Dashboard({ theme, toggleTheme }) {
     }
   }, [showToast]);
 
-  const loadExpenseData = useCallback(async ({ silent = false } = {}) => {
-    if (isLoadingExpensesRef.current) return;
+  const loadExpenseData = useCallback(async ({ silent = false, notifySuccess = false, notifyStart = false } = {}) => {
+    if (isLoadingExpensesRef.current) {
+      if (!silent) {
+        showToast({
+          type: 'info',
+          title: 'Data sedang di-refresh',
+          message: 'Tunggu sebentar, data pengeluaran terbaru masih diambil.'
+        });
+      }
+      return [];
+    }
 
     isLoadingExpensesRef.current = true;
+    if (!silent) setExpenseLoading(true);
+    if (notifyStart) {
+      showToast({
+        type: 'info',
+        title: 'Refresh data dimulai',
+        message: 'Mengambil pengeluaran terbaru dari server.'
+      });
+    }
 
     try {
       const data = await fetchExpenses();
-      setExpenses(data.map(normalizeExpenseRow));
+      const normalizedExpenses = data.map(normalizeExpenseRow);
+      setExpenses(normalizedExpenses);
+      setHasLoadedExpenses(true);
+
+      if (notifySuccess) {
+        showToast({
+          type: 'success',
+          title: 'Data sudah diperbarui',
+          message: `${normalizedExpenses.length} pengeluaran berhasil dimuat.`
+        });
+      }
+
+      return normalizedExpenses;
     } catch {
       if (!silent) {
         showToast({
@@ -193,7 +224,9 @@ export default function Dashboard({ theme, toggleTheme }) {
           message: 'Data pengeluaran belum bisa dimuat untuk dashboard.'
         });
       }
+      return [];
     } finally {
+      if (!silent) setExpenseLoading(false);
       isLoadingExpensesRef.current = false;
     }
   }, [showToast]);
@@ -310,7 +343,8 @@ export default function Dashboard({ theme, toggleTheme }) {
                 newValue = value === '' ? '' : Math.max(1, Number(value) || 1);
               }
               const nextItem = { ...item, [field]: newValue };
-              nextItem.harga = getTemplateItemTotal(nextItem.produk, nextItem.qty || 1);
+              const nextQty = nextItem.qty === '' ? 0 : Number(nextItem.qty) || 0;
+              nextItem.harga = nextQty > 0 ? getTemplateItemTotal(nextItem.produk, nextQty) : 0;
               return nextItem;
             })()
           : item
@@ -736,6 +770,16 @@ Pembayaran: ${manualForm.pembayaran}`;
     setActiveMenu(menuKey);
     setIsSidebarOpen(false);
   };
+  const handleRefresh = () => {
+    if (activeMenu === 'pengeluaran') {
+      loadExpenseData({ notifyStart: true, notifySuccess: true });
+      loadData({ silent: true });
+      return;
+    }
+
+    loadData({ notifyStart: true, notifySuccess: true });
+    loadExpenseData({ silent: true });
+  };
 
   return (
     <>
@@ -764,13 +808,10 @@ Pembayaran: ${manualForm.pembayaran}`;
           dateLabel={dashboardDateLabel}
           timeLabel={dashboardTimeLabel}
           theme={theme}
-          loading={loading}
+          loading={loading || expenseLoading}
           onToggleSidebar={handleSidebarToggle}
           onToggleTheme={toggleTheme}
-          onRefresh={() => {
-            loadData({ notifyStart: true, notifySuccess: true });
-            loadExpenseData();
-          }}
+          onRefresh={handleRefresh}
         />
 
         {activeMenu === 'dashboard' && (
@@ -861,7 +902,15 @@ Pembayaran: ${manualForm.pembayaran}`;
         )}
 
         {activeMenu === 'pengeluaran' && (
-          <Pengeluaran greeting={dashboardGreeting} showToast={showToast} />
+          <Pengeluaran
+            greeting={dashboardGreeting}
+            expenses={expenses}
+            loading={expenseLoading}
+            hasLoadedExpenses={hasLoadedExpenses}
+            onReloadExpenses={loadExpenseData}
+            onExpensesChange={setExpenses}
+            showToast={showToast}
+          />
         )}
 
         {activeMenu === 'laporan' && (

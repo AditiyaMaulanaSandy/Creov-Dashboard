@@ -1,5 +1,6 @@
 import { EXPENSE_CATEGORIES, EXPENSE_PAYMENT_METHODS } from '../../constants/dashboard';
 import { formatRupiah } from '../../utils/formatters';
+import { parseExpenseAmount } from '../../utils/expenses';
 
 export default function ExpenseModal({
   title,
@@ -10,7 +11,7 @@ export default function ExpenseModal({
   saving,
   submitLabel
 }) {
-  const total = (Number(form.qty) || 0) * (Number(form.hargaSatuan) || 0);
+  const total = (Number(form.qty) || 0) * parseExpenseAmount(form.hargaSatuan);
 
   return (
     <div className="modal-overlay">

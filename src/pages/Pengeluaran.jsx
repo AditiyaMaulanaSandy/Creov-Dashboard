@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { EXPENSE_CATEGORIES } from '../constants/dashboard';
 import ExpenseCharts from '../components/expenses/ExpenseCharts';
 import ExpenseFilters from '../components/expenses/ExpenseFilters';
@@ -6,7 +6,7 @@ import ExpenseModal from '../components/expenses/ExpenseModal';
 import ExpenseSummary from '../components/expenses/ExpenseSummary';
 import ExpenseTable from '../components/expenses/ExpenseTable';
 import DateFilterPanel from '../components/orders/DateFilterPanel';
-import { addExpenseAPI, editExpenseAPI, fetchExpenses } from '../services/api';
+import { addExpenseAPI, editExpenseAPI } from '../services/api';
 import { isSuccessResult, readApiResult } from '../utils/apiResult';
 import {
   buildExpensePayload,
@@ -26,12 +26,15 @@ import {
 import { getDateRange } from '../utils/orders';
 
 const EXPENSE_ROWS_PER_PAGE = 10;
-let cachedExpenses = [];
-let hasLoadedExpenses = false;
 
-export default function Pengeluaran({ showToast = () => {} }) {
-  const [expenses, setExpenses] = useState(() => cachedExpenses);
-  const [loading, setLoading] = useState(false);
+export default function Pengeluaran({
+  expenses = [],
+  loading = false,
+  hasLoadedExpenses = false,
+  onReloadExpenses = async () => [],
+  onExpensesChange = () => {},
+  showToast = () => {}
+}) {
   const [saving, setSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('add');
@@ -41,35 +44,15 @@ export default function Pengeluaran({ showToast = () => {} }) {
   const [dateFilter, setDateFilter] = useState(() => getDateRange('all'));
   const [currentPage, setCurrentPage] = useState(1);
 
-  const loadExpenses = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
-
-    try {
-      const data = await fetchExpenses();
-      const normalizedExpenses = data.map(normalizeExpenseRow);
-      cachedExpenses = normalizedExpenses;
-      hasLoadedExpenses = true;
-      setExpenses(normalizedExpenses);
-    } catch {
-      showToast({
-        type: 'error',
-        title: 'Data pengeluaran belum bisa diambil',
-        message: 'Pastikan Apps Script sudah punya action getExpenses dan sheet PENGELUARAN.'
-      });
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [showToast]);
-
   useEffect(() => {
     if (hasLoadedExpenses) return undefined;
 
     const timerId = window.setTimeout(() => {
-      loadExpenses();
+      onReloadExpenses();
     }, 0);
 
     return () => window.clearTimeout(timerId);
-  }, [loadExpenses]);
+  }, [hasLoadedExpenses, onReloadExpenses]);
 
   useEffect(() => {
     const modalOpen = isModalOpen;
@@ -214,9 +197,27 @@ export default function Pengeluaran({ showToast = () => {} }) {
         title: modalMode === 'edit' ? 'Pengeluaran diperbarui' : 'Pengeluaran ditambahkan',
         message: `${expenseId} berhasil disimpan.`
       });
+      const savedExpense = normalizeExpenseRow({
+        ...payload,
+        'EXPENSE ID': expenseId
+      });
+      onExpensesChange(prevExpenses => {
+        const previousExpenses = Array.isArray(prevExpenses) ? prevExpenses : [];
+
+        if (modalMode === 'edit') {
+          const hasCurrentExpense = previousExpenses.some(expense => getExpenseId(expense) === expenseId);
+          const updatedExpenses = previousExpenses.map(expense => (
+            getExpenseId(expense) === expenseId ? savedExpense : expense
+          ));
+
+          return hasCurrentExpense ? updatedExpenses : [savedExpense, ...updatedExpenses];
+        }
+
+        return [savedExpense, ...previousExpenses];
+      });
       setIsModalOpen(false);
       setForm(createExpenseForm());
-      await loadExpenses({ silent: true });
+      await onReloadExpenses({ silent: true });
     } catch {
       showToast({
         type: 'error',

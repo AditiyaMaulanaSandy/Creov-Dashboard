@@ -98,12 +98,11 @@ export default function ExpenseCharts({ expenses }) {
                   <div key={item.category} className="expense-category-bar-row">
                     <div className="expense-category-bar-label">
                       <strong>{item.category}</strong>
-                      <span>{share}% &middot; {item.count} catatan</span>
+                      <span>{share}% &middot; {item.count} catatan &middot; {formatRupiah(item.amount)}</span>
                     </div>
                     <div className="expense-category-bar-track" aria-hidden="true">
                       <span style={{ width: `${width}%`, backgroundColor: item.color }} />
                     </div>
-                    <strong className="expense-category-bar-value">{formatRupiah(item.amount)}</strong>
                   </div>
                 );
               })}

@@ -21,7 +21,7 @@ export default function OrderStatusStrip({
           className={`order-status-chip ${currentTab === status.key ? 'active' : ''}`}
           onClick={() => onChangeTab(status.key)}
         >
-          <span className={`order-status-icon ${status.className}`}>{status.icon}</span>
+          <span className={`order-status-icon ${status.className}`}><i className={status.iconClass}></i></span>
           <span>{status.label}</span>
           <strong>{statusSummary[status.key]}</strong>
         </button>

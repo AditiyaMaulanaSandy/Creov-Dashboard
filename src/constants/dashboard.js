@@ -3,10 +3,10 @@ export const APP_TIME_ZONE = 'Asia/Jakarta';
 export const APP_TIME_ZONE_OFFSET = '+07:00';
 
 export const STATUS_OPTIONS = [
-  { key: 'pending', label: 'Pending', icon: '🕒', className: 'status-pending' },
-  { key: 'diproses', label: 'Diproses', icon: '⚙️', className: 'status-diproses' },
-  { key: 'selesai', label: 'Selesai', icon: '✅', className: 'status-selesai' },
-  { key: 'batal', label: 'Batal', icon: '❌', className: 'status-batal' }
+  { key: 'pending', label: 'Pending', iconClass: 'far fa-clock', className: 'status-pending' },
+  { key: 'diproses', label: 'Diproses', iconClass: 'fas fa-gear', className: 'status-diproses' },
+  { key: 'selesai', label: 'Selesai', iconClass: 'fas fa-check', className: 'status-selesai' },
+  { key: 'batal', label: 'Batal', iconClass: 'fas fa-xmark', className: 'status-batal' }
 ];
 
 export const MENU_ITEMS = [
@@ -61,7 +61,7 @@ export const PRODUCT_PRICING = {
     bundlePrice: 25000
   },
   'Dubai Chewy Cookie Mini': {
-    unitPrice: 17000
+    unitPrice: 25000
   }
 };
 

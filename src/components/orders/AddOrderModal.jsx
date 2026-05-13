@@ -15,6 +15,8 @@ export default function AddOrderModal({
   savingOrder,
   onClose
 }) {
+  const totalProductQty = manualForm.items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+
   return (
     <div className="modal-overlay">
       <div className="modal-box order-modal themed-order-modal">
@@ -79,6 +81,7 @@ export default function AddOrderModal({
                         value={item.qty}
                         onChange={e => handleItemChange(index, 'qty', e.target.value)}
                         onBlur={() => handleItemBlur(index, 'qty')}
+                        min="1"
                       />
                     </div>
                   </div>
@@ -117,7 +120,7 @@ export default function AddOrderModal({
             </div>
             <div className="order-summary-pill">
               <span>Total Item</span>
-              <strong>{manualForm.items.length} item</strong>
+              <strong>{totalProductQty} pcs</strong>
             </div>
           </div>
 

@@ -137,7 +137,7 @@ export default function DashboardHome({
             className={`status-summary-card ${currentTab === status.key ? 'active' : ''}`}
             onClick={() => onOpenOrdersTab(status.key)}
           >
-            <span className={`status-dot ${status.className}`}>{status.icon}</span>
+            <span className={`status-dot ${status.className}`}><i className={status.iconClass}></i></span>
             <span>{status.label}</span>
             <strong>{statusSummary[status.key]}</strong>
           </button>

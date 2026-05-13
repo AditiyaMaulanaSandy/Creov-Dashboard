@@ -68,7 +68,7 @@ export default function OrderTable({
                 const waLink = getWaLink(row);
 
                 return (
-                  <tr key={idx}>
+                  <tr key={row['ORDER ID'] || idx}>
                     <td className="order-time-cell">
                       <div>{formatOrderDate(row['WAKTU'])}</div>
                       {row['WAKTU'] && (
@@ -88,7 +88,7 @@ export default function OrderTable({
                     <td>
                       <select value={row['STATUS'] || 'Pending'} onChange={(e) => updateOrderStatus(row['ORDER ID'], e.target.value)} className={`status-select ${statusMeta.className}`}>
                         {statusOptions.map(status => (
-                          <option key={status.key} value={status.label}>{status.icon} {status.label}</option>
+                          <option key={status.key} value={status.label}>{status.label}</option>
                         ))}
                       </select>
                     </td>

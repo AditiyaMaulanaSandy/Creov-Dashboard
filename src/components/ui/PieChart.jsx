@@ -37,6 +37,7 @@ export default function PieChart({
   }, [items, total]);
 
   const activeSegment = segments.find(item => item.key === activeKey);
+  const activeValue = activeSegment ? valueFormatter(activeSegment.value) : '';
 
   return (
     <div className={`interactive-pie ${className}`} onMouseLeave={() => setActiveKey('')}>
@@ -54,16 +55,19 @@ export default function PieChart({
             strokeDashoffset={-segment.offset}
             onMouseEnter={() => setActiveKey(segment.key)}
             onFocus={() => setActiveKey(segment.key)}
+            onBlur={() => setActiveKey('')}
             tabIndex="0"
           />
         ))}
       </svg>
 
-      <span className="interactive-pie-center">
+      <span className={`interactive-pie-center ${activeSegment ? 'is-active' : ''}`}>
         {activeSegment ? (
           <>
-            <strong>{valueFormatter(activeSegment.value)}</strong>
-            <small>{activeSegment.label} - {activeSegment.percent}%</small>
+            <span className="interactive-pie-center-dot" style={{ backgroundColor: activeSegment.color }}></span>
+            <strong>{activeSegment.percent}%</strong>
+            <small>{activeValue}</small>
+            <em>{activeSegment.label}</em>
           </>
         ) : (
           <>
@@ -72,6 +76,17 @@ export default function PieChart({
           </>
         )}
       </span>
+
+      {activeSegment && (
+        <div className="interactive-pie-tooltip" style={{ '--active-color': activeSegment.color }}>
+          <div>
+            <span style={{ backgroundColor: activeSegment.color }}></span>
+            <strong>{activeSegment.label}</strong>
+          </div>
+          <p>{activeValue}</p>
+          <small>{activeSegment.percent}% dari total</small>
+        </div>
+      )}
     </div>
   );
 }

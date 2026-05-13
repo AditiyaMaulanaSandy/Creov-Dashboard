@@ -1,18 +1,86 @@
+import { APP_TIME_ZONE, APP_TIME_ZONE_OFFSET } from '../constants/dashboard';
+
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyQJLmhvZl-k932BihUyOSi1hDgazskBQJAzi63TpgP5sjzbGebm-YQ08NEpENj978/exec';
 
 const FIELD_ALIASES = {
   orderId: ['ORDER ID', 'Order ID', 'orderId'],
   nama: ['NAMA', 'Nama', 'nama'],
   pesanan: ['PESANAN', 'Pesanan', 'pesanan'],
-  totalHarga: ['TOTAL HARGA', 'Total Harga', 'Total', 'total'],
+  totalHarga: ['TOTAL HARGA', 'Total Harga', 'Total', 'total', 'TOTAL', 'JUMLAH', 'Jumlah', 'jumlah'],
   status: ['STATUS', 'Status', 'status'],
   waktu: ['WAKTU', 'Waktu', 'waktu', 'Timestamp', 'timestamp'],
+  tanggal: ['TANGGAL', 'Tanggal', 'tanggal', 'DATE', 'Date', 'date'],
+  jam: ['JAM', 'Jam', 'jam', 'TIME', 'Time', 'time'],
   linkWa: ['LINK NO WA', 'Link No WA', 'NO HP', 'LINK WA', 'Link WA', 'WA', 'Whatsapp', 'WHATSAPP', 'No WA', 'nomorHp', 'wa']
 };
 
 const getFirstValue = (row, keys, fallback = '') => {
   const key = keys.find(fieldName => row[fieldName] !== undefined && row[fieldName] !== null && row[fieldName] !== '');
   return key ? row[key] : fallback;
+};
+
+const getRowsFromResult = (result, keys) => {
+  if (Array.isArray(result)) return result;
+  if (!result || typeof result !== 'object') return [];
+
+  const rows = keys
+    .map(key => result[key])
+    .find(value => Array.isArray(value));
+
+  return rows || [];
+};
+
+const formatDateInAppZone = (value) => {
+  if (!value) return '';
+
+  const textValue = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(textValue)) return textValue;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: APP_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+const formatTimeInAppZone = (value) => {
+  if (!value) return '00:00';
+
+  const textValue = String(value).trim();
+  const timeMatch = textValue.match(/^(\d{1,2})[:.](\d{2})/);
+  if (timeMatch) return `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '00:00';
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: APP_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+
+  return `${values.hour}:${values.minute}`;
+};
+
+const getOrderTimestamp = (row) => {
+  const directTimestamp = getFirstValue(row, FIELD_ALIASES.waktu);
+  if (directTimestamp) return directTimestamp;
+
+  const dateValue = formatDateInAppZone(getFirstValue(row, FIELD_ALIASES.tanggal));
+  if (!dateValue) return '';
+
+  const timeValue = formatTimeInAppZone(getFirstValue(row, FIELD_ALIASES.jam));
+  return `${dateValue}T${timeValue}:00${APP_TIME_ZONE_OFFSET}`;
 };
 
 const normalizeOrderRow = (row) => ({
@@ -22,7 +90,7 @@ const normalizeOrderRow = (row) => ({
   PESANAN: getFirstValue(row, FIELD_ALIASES.pesanan),
   'TOTAL HARGA': getFirstValue(row, FIELD_ALIASES.totalHarga, 0),
   STATUS: getFirstValue(row, FIELD_ALIASES.status, 'Pending'),
-  WAKTU: getFirstValue(row, FIELD_ALIASES.waktu),
+  WAKTU: getOrderTimestamp(row),
   'LINK NO WA': getFirstValue(row, FIELD_ALIASES.linkWa)
 });
 
@@ -68,10 +136,10 @@ export const fetchOrders = async () => {
   const response = await fetch(SCRIPT_URL);
   if (!response.ok) throw new Error('Gagal menarik data pesanan');
 
-  const data = await response.json();
-  if (!Array.isArray(data)) return [];
+  const result = await response.json();
+  const rows = getRowsFromResult(result, ['data', 'rows', 'orders', 'pesanan']);
 
-  const normalizedOrders = data
+  const normalizedOrders = rows
     .map(normalizeOrderRow)
     .filter(row => row['ORDER ID'])
     .reverse();
@@ -111,8 +179,7 @@ export const fetchExpenses = async () => {
   if (!response.ok) throw new Error('Gagal menarik data pengeluaran');
 
   const result = await response.json();
-  const rows = Array.isArray(result) ? result : (result?.data || result?.expenses || result?.pengeluaran);
-  if (!Array.isArray(rows)) return [];
+  const rows = getRowsFromResult(result, ['data', 'rows', 'expenses', 'pengeluaran']);
 
   return rows
     .map(normalizeExpenseRow)

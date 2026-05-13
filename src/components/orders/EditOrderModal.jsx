@@ -40,7 +40,7 @@ export default function EditOrderModal({
               <label>Status</label>
               <select name="status" value={editForm.status} onChange={handleEditFormChange}>
                 {statusOptions.map(status => (
-                  <option key={status.key} value={status.label}>{status.icon} {status.label}</option>
+                  <option key={status.key} value={status.label}>{status.label}</option>
                 ))}
               </select>
             </div>
