@@ -64,3 +64,18 @@ export const PRODUCT_PRICING = {
     unitPrice: 17000
   }
 };
+
+export const EXPENSE_CATEGORIES = [
+  'Bahan Baku',
+  'Packaging',
+  'Operasional',
+  'Transport',
+  'Marketing',
+  'Lainnya'
+];
+
+export const EXPENSE_PAYMENT_METHODS = [
+  'Cash',
+  'Transfer',
+  'Qris'
+];

@@ -2,6 +2,12 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import html2canvas from 'html2canvas';
 import { formatRupiah } from '../utils/formatters';
 import {
+  getExpenseCategory,
+  getExpenseItemName,
+  getExpenseTotal,
+  normalizeExpenseRow
+} from '../utils/expenses';
+import {
   createManualOrderForm,
   createManualOrderItem,
   formatReceiptCurrency,
@@ -31,7 +37,7 @@ import {
   ROWS_PER_PAGE,
   STATUS_OPTIONS
 } from '../constants/dashboard';
-import { fetchOrders, updateOrderStatusAPI, addOrderAPI, editOrderAPI } from '../services/api';
+import { fetchOrders, updateOrderStatusAPI, addOrderAPI, editOrderAPI, fetchExpenses } from '../services/api';
 import Sidebar from '../components/layout/Sidebar';
 import WorkspaceTopbar from '../components/layout/WorkspaceTopbar';
 import ToastStack from '../components/ui/ToastStack';
@@ -42,6 +48,7 @@ import Laporan from './Laporan';
 
 export default function Dashboard({ theme, toggleTheme }) {
   const [orders, setOrders] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -57,6 +64,7 @@ export default function Dashboard({ theme, toggleTheme }) {
   const hasLoadedOnceRef = useRef(false);
   const toastTimersRef = useRef([]);
   const isLoadingOrdersRef = useRef(false);
+  const isLoadingExpensesRef = useRef(false);
   
   // States Modal Struk
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
@@ -169,21 +177,44 @@ export default function Dashboard({ theme, toggleTheme }) {
     }
   }, [showToast]);
 
+  const loadExpenseData = useCallback(async ({ silent = false } = {}) => {
+    if (isLoadingExpensesRef.current) return;
+
+    isLoadingExpensesRef.current = true;
+
+    try {
+      const data = await fetchExpenses();
+      setExpenses(data.map(normalizeExpenseRow));
+    } catch {
+      if (!silent) {
+        showToast({
+          type: 'error',
+          title: 'Gagal menarik pengeluaran',
+          message: 'Data pengeluaran belum bisa dimuat untuk dashboard.'
+        });
+      }
+    } finally {
+      isLoadingExpensesRef.current = false;
+    }
+  }, [showToast]);
+
   useEffect(() => {
     const timerId = window.setTimeout(() => {
       loadData();
+      loadExpenseData({ silent: true });
     }, 0);
 
     return () => window.clearTimeout(timerId);
-  }, [loadData]);
+  }, [loadData, loadExpenseData]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       loadData({ silent: true });
+      loadExpenseData({ silent: true });
     }, 60000);
 
     return () => window.clearInterval(intervalId);
-  }, [loadData]);
+  }, [loadData, loadExpenseData]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -563,7 +594,7 @@ Pembayaran: ${manualForm.pembayaran}`;
   };
 
   // --- SUMMARY, FILTERING & PENCARIAN ---
-  const { totalOrders, totalRevenue, statusSummary, topProducts } = useMemo(() => {
+  const { totalOrders, totalRevenue, statusSummary, topProducts, productSales } = useMemo(() => {
     let rev = 0; let count = 0;
     const summary = { pending: 0, diproses: 0, selesai: 0, batal: 0 };
     const productMap = new Map();
@@ -591,11 +622,48 @@ Pembayaran: ${manualForm.pembayaran}`;
 
     const products = Array.from(productMap.entries())
       .map(([name, qty]) => ({ name, qty }))
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 3);
+      .sort((a, b) => b.qty - a.qty);
 
-    return { totalOrders: count, totalRevenue: rev, statusSummary: summary, topProducts: products };
+    return {
+      totalOrders: count,
+      totalRevenue: rev,
+      statusSummary: summary,
+      topProducts: products.slice(0, 3),
+      productSales: products
+    };
   }, [orders]);
+
+  const { totalExpense, estimatedProfit, profitRate, expenseCategories, topExpenseCategories, latestExpenseName } = useMemo(() => {
+    const categoryMap = new Map();
+    let expenseTotal = 0;
+
+    expenses.forEach(expense => {
+      const amount = getExpenseTotal(expense);
+      const category = getExpenseCategory(expense);
+      const current = categoryMap.get(category) || { category, total: 0, count: 0 };
+
+      expenseTotal += amount;
+      categoryMap.set(category, {
+        ...current,
+        total: current.total + amount,
+        count: current.count + 1
+      });
+    });
+
+    const profit = totalRevenue - expenseTotal;
+    const rate = totalRevenue > 0 ? Math.round((profit / totalRevenue) * 100) : 0;
+    const categories = Array.from(categoryMap.values())
+      .sort((a, b) => b.total - a.total);
+
+    return {
+      totalExpense: expenseTotal,
+      estimatedProfit: profit,
+      profitRate: rate,
+      expenseCategories: categories,
+      topExpenseCategories: categories.slice(0, 3),
+      latestExpenseName: getExpenseItemName(expenses[0]) || '-'
+    };
+  }, [expenses, totalRevenue]);
 
   const filteredOrders = useMemo(() => {
     // Ubah keyword pencarian jadi huruf kecil agar Case-Insensitive
@@ -699,7 +767,10 @@ Pembayaran: ${manualForm.pembayaran}`;
           loading={loading}
           onToggleSidebar={handleSidebarToggle}
           onToggleTheme={toggleTheme}
-          onRefresh={() => loadData({ notifyStart: true, notifySuccess: true })}
+          onRefresh={() => {
+            loadData({ notifyStart: true, notifySuccess: true });
+            loadExpenseData();
+          }}
         />
 
         {activeMenu === 'dashboard' && (
@@ -708,16 +779,24 @@ Pembayaran: ${manualForm.pembayaran}`;
             onDismissNewOrderNotice={() => setNewOrderNotice(null)}
             totalOrders={totalOrders}
             totalRevenue={totalRevenue}
+            totalExpense={totalExpense}
+            estimatedProfit={estimatedProfit}
+            profitRate={profitRate}
+            latestExpenseName={latestExpenseName}
+            expenseCategories={expenseCategories}
             currentTab={currentTab}
             onOpenOrdersTab={(tabKey) => {
               setActiveMenu('pesanan');
               setCurrentTab(tabKey);
               setCurrentPage(1);
             }}
+            onOpenExpensesTab={() => setActiveMenu('pengeluaran')}
             orders={orders}
             statusOptions={STATUS_OPTIONS}
             statusSummary={statusSummary}
             topProducts={topProducts}
+            productSales={productSales}
+            topExpenseCategories={topExpenseCategories}
           />
         )}
 
@@ -782,7 +861,7 @@ Pembayaran: ${manualForm.pembayaran}`;
         )}
 
         {activeMenu === 'pengeluaran' && (
-          <Pengeluaran greeting={dashboardGreeting} />
+          <Pengeluaran greeting={dashboardGreeting} showToast={showToast} />
         )}
 
         {activeMenu === 'laporan' && (

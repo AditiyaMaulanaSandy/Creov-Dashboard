@@ -26,6 +26,31 @@ const normalizeOrderRow = (row) => ({
   'LINK NO WA': getFirstValue(row, FIELD_ALIASES.linkWa)
 });
 
+const EXPENSE_FIELD_ALIASES = {
+  expenseId: ['EXPENSE ID', 'Expense ID', 'expenseId'],
+  tanggal: ['TANGGAL', 'Tanggal', 'tanggal', 'DATE', 'Date'],
+  kategori: ['KATEGORI', 'Kategori', 'kategori'],
+  namaItem: ['NAMA ITEM', 'Nama Item', 'namaItem', 'ITEM', 'Item', 'item'],
+  qty: ['QTY', 'Qty', 'qty'],
+  hargaSatuan: ['HARGA SATUAN', 'Harga Satuan', 'hargaSatuan', 'HARGA', 'Harga', 'harga'],
+  total: ['TOTAL', 'Total', 'total', 'JUMLAH', 'Jumlah', 'jumlah', 'NOMINAL', 'Nominal', 'nominal'],
+  metode: ['METODE', 'Metode', 'metode', 'PEMBAYARAN', 'Pembayaran', 'pembayaran'],
+  dibuatPada: ['DIBUAT PADA', 'Dibuat Pada', 'dibuatPada', 'CREATED AT', 'Created At', 'createdAt']
+};
+
+const normalizeExpenseRow = (row) => ({
+  ...row,
+  'EXPENSE ID': getFirstValue(row, EXPENSE_FIELD_ALIASES.expenseId),
+  TANGGAL: getFirstValue(row, EXPENSE_FIELD_ALIASES.tanggal),
+  KATEGORI: getFirstValue(row, EXPENSE_FIELD_ALIASES.kategori),
+  'NAMA ITEM': getFirstValue(row, EXPENSE_FIELD_ALIASES.namaItem),
+  QTY: getFirstValue(row, EXPENSE_FIELD_ALIASES.qty, 0),
+  'HARGA SATUAN': getFirstValue(row, EXPENSE_FIELD_ALIASES.hargaSatuan, 0),
+  TOTAL: getFirstValue(row, EXPENSE_FIELD_ALIASES.total, 0),
+  METODE: getFirstValue(row, EXPENSE_FIELD_ALIASES.metode, 'Cash'),
+  'DIBUAT PADA': getFirstValue(row, EXPENSE_FIELD_ALIASES.dibuatPada)
+});
+
 const keepLatestOrderPerId = (orders) => {
   const seenOrderIds = new Set();
 
@@ -75,5 +100,36 @@ export const addOrderAPI = async (orderData) => {
   return await fetch(SCRIPT_URL, {
     method: 'POST',
     body: JSON.stringify(orderData)
+  });
+};
+
+export const fetchExpenses = async () => {
+  const response = await fetch(SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'getExpenses' })
+  });
+  if (!response.ok) throw new Error('Gagal menarik data pengeluaran');
+
+  const result = await response.json();
+  const rows = Array.isArray(result) ? result : (result?.data || result?.expenses || result?.pengeluaran);
+  if (!Array.isArray(rows)) return [];
+
+  return rows
+    .map(normalizeExpenseRow)
+    .filter(row => row['EXPENSE ID'] || row['NAMA ITEM'])
+    .reverse();
+};
+
+export const addExpenseAPI = async (expenseData) => {
+  return await fetch(SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'addExpense', ...expenseData })
+  });
+};
+
+export const editExpenseAPI = async (expenseData) => {
+  return await fetch(SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'editExpense', ...expenseData })
   });
 };
