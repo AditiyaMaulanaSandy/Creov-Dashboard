@@ -1,350 +1,44 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import html2canvas from 'html2canvas';
 import { formatRupiah } from '../utils/formatters';
+import {
+  createManualOrderForm,
+  createManualOrderItem,
+  formatReceiptCurrency,
+  getDateInputValue,
+  getDateRange,
+  getDefaultOrderDateTime,
+  getProductName,
+  getProductQty,
+  getReceiptAddress,
+  getReceiptField,
+  getReceiptItems,
+  getStatusMeta,
+  getTemplateItemTotal,
+  getTimeInputValue,
+  getWaLink,
+  normalizeStatus,
+  parseCurrencyValue,
+  renderOrderLine
+} from '../utils/orders';
+import { isSuccessResult, readApiResult } from '../utils/apiResult';
+import {
+  APP_TIME_ZONE,
+  APP_TIME_ZONE_OFFSET,
+  MENU_ITEMS,
+  PRODUCT_OPTIONS,
+  RECEIPT_ITEM_IMAGE_MAP,
+  ROWS_PER_PAGE,
+  STATUS_OPTIONS
+} from '../constants/dashboard';
 import { fetchOrders, updateOrderStatusAPI, addOrderAPI, editOrderAPI } from '../services/api';
-
-const ROWS_PER_PAGE = 10;
-const APP_TIME_ZONE = 'Asia/Jakarta';
-const APP_TIME_ZONE_OFFSET = '+07:00';
-const STATUS_OPTIONS = [
-  { key: 'pending', label: 'Pending', icon: '🕒', className: 'status-pending' },
-  { key: 'diproses', label: 'Diproses', icon: '⚙️', className: 'status-diproses' },
-  { key: 'selesai', label: 'Selesai', icon: '✅', className: 'status-selesai' },
-  { key: 'batal', label: 'Batal', icon: '❌', className: 'status-batal' }
-];
-
-const MENU_ITEMS = [
-  {
-    key: 'dashboard',
-    label: 'Dashboard',
-    eyebrow: 'Overview',
-    title: 'Dashboard',
-    icon: 'fas fa-chart-pie',
-    accentClass: 'menu-accent-blue'
-  },
-  {
-    key: 'pesanan',
-    label: 'Pesanan',
-    eyebrow: 'Order',
-    title: 'Pesanan',
-    icon: 'fas fa-bag-shopping',
-    accentClass: 'menu-accent-amber'
-  },
-  {
-    key: 'pengeluaran',
-    label: 'Pengeluaran',
-    eyebrow: 'Expense',
-    title: 'Pengeluaran',
-    icon: 'fas fa-receipt',
-    accentClass: 'menu-accent-green'
-  },
-  {
-    key: 'laporan',
-    label: 'Laporan',
-    eyebrow: 'Report',
-    title: 'Laporan',
-    icon: 'fas fa-file-lines',
-    accentClass: 'menu-accent-rose'
-  }
-];
-
-const PRODUCT_OPTIONS = [
-  'Signature Layered Oreo',
-  'Dubai Chewy Cookie Mini'
-];
-
-const RECEIPT_ITEM_IMAGE_MAP = {
-  'Signature Layered Oreo': '/menu/oreo.webp',
-  'Dubai Chewy Cookie Mini': '/menu/dubai.webp'
-};
-
-const PRODUCT_PRICING = {
-  'Signature Layered Oreo': {
-    unitPrice: 10000,
-    bundleQty: 3,
-    bundlePrice: 25000
-  },
-  'Dubai Chewy Cookie Mini': {
-    unitPrice: 17000
-  }
-};
-
-const getTemplateItemTotal = (productName, qty) => {
-  const quantity = Math.max(1, Number(qty) || 1);
-  const pricing = PRODUCT_PRICING[productName];
-
-  if (!pricing) return 0;
-
-  if (pricing.bundleQty && pricing.bundlePrice) {
-    const bundleCount = Math.floor(quantity / pricing.bundleQty);
-    const remainder = quantity % pricing.bundleQty;
-    return (bundleCount * pricing.bundlePrice) + (remainder * pricing.unitPrice);
-  }
-
-  return quantity * pricing.unitPrice;
-};
-
-const createManualOrderItem = () => ({
-  produk: PRODUCT_OPTIONS[0],
-  qty: 1,
-  harga: getTemplateItemTotal(PRODUCT_OPTIONS[0], 1)
-});
-
-const createManualOrderForm = () => {
-  const defaultOrderDateTime = getDefaultOrderDateTime();
-
-  return {
-    nama: '',
-    items: [createManualOrderItem()],
-    pengantaran: 'Pick up',
-    pembayaran: 'Cash',
-    alamat: '',
-    wa: '',
-    tanggal: defaultOrderDateTime.tanggal,
-    jam: defaultOrderDateTime.jam
-  };
-};
-
-const getDefaultOrderDateTime = () => {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: APP_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    hourCycle: 'h23'
-  }).formatToParts(now);
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-
-  return {
-    tanggal: `${values.year}-${values.month}-${values.day}`,
-    jam: `${values.hour}:${values.minute}`
-  };
-};
-
-const parseCurrencyValue = (value) => {
-  if (typeof value === 'number') return value;
-  const normalized = String(value || '').replace(/[^\d-]/g, '');
-  return Number(normalized) || 0;
-};
-
-const getOrderDate = (value) => {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-
-const getDateInputValue = (value) => {
-  const date = getOrderDate(value);
-  if (!date) return '';
-
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: APP_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-
-  return `${values.year}-${values.month}-${values.day}`;
-};
-
-const getTimeInputValue = (value) => {
-  const date = getOrderDate(value);
-  if (!date) return '';
-
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: APP_TIME_ZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    hourCycle: 'h23'
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-
-  return `${values.hour}:${values.minute}`;
-};
-
-const getDateRange = (rangeKey) => {
-  const now = new Date();
-  const today = getDateInputValue(now);
-  const currentMonth = today.slice(0, 7);
-
-  if (rangeKey === 'today') return { start: today, end: today };
-
-  if (rangeKey === 'week') {
-    const startDate = new Date(now);
-    startDate.setDate(startDate.getDate() - 6);
-    return { start: getDateInputValue(startDate), end: today };
-  }
-
-  if (rangeKey === 'month') return { start: `${currentMonth}-01`, end: today };
-
-  return { start: '', end: '' };
-};
-
-const normalizeStatus = (value) => String(value || 'Pending').toLowerCase();
-
-const getStatusMeta = (statusValue) => {
-  const normalized = normalizeStatus(statusValue);
-  return STATUS_OPTIONS.find(status => normalized.includes(status.key)) || STATUS_OPTIONS[0];
-};
-
-const getProductName = (line) => {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith('-')) return null;
-
-  return trimmed
-    .replace(/^-+\s*/, '')
-    .replace(/\s*\(x\d+\).*$/i, '')
-    .replace(/\s*=\s*Rp.*$/i, '')
-    .trim();
-};
-
-const getProductQty = (line) => {
-  const match = line.match(/\(x(\d+)\)/i);
-  return match ? Number(match[1]) : 1;
-};
-
-const renderOrderLine = (line) => {
-  const trimmedLine = line.trim();
-  const shouldBoldLine = /^Order ID:|^Total Akhir:/i.test(trimmedLine);
-
-  if (shouldBoldLine) {
-    return <strong>{line}</strong>;
-  }
-
-  const segments = line.split(/(\*[^*]+\*)/g);
-  return segments.map((segment, index) => {
-    if (segment.startsWith('*') && segment.endsWith('*')) {
-      return <strong key={index}>{segment.slice(1, -1)}</strong>;
-    }
-
-    return segment;
-  });
-};
-
-const formatReceiptCurrency = (value) => formatRupiah(parseCurrencyValue(value)).replace(/^Rp/, 'Rp ');
-
-const readApiResult = async (response) => {
-  let result = null;
-
-  try {
-    result = await response.json();
-  } catch {
-    // Some Apps Script responses are empty even when the request succeeds.
-  }
-
-  if (!response.ok || result?.result === 'error' || result?.status === 'error') {
-    throw new Error(result?.message || 'Request gagal');
-  }
-
-  return result || {};
-};
-
-const isSuccessResult = (result) => result.result === 'success' || result.status === 'success';
-
-const getReceiptField = (order, fieldName, fallback = '-') => {
-  const pattern = new RegExp(`^${fieldName}\\s*:\\s*(.+)$`, 'i');
-  const match = String(order?.['PESANAN'] || '')
-    .split('\n')
-    .map(line => line.trim().match(pattern))
-    .find(Boolean);
-
-  return match?.[1]?.trim() || fallback;
-};
-
-const getReceiptAddress = (order) => {
-  const directAddress = order?.ALAMAT || order?.Alamat || order?.alamat || order?.ADDRESS || order?.Address || order?.address;
-  if (directAddress && String(directAddress).trim()) return String(directAddress).trim();
-
-  return getReceiptField(order, 'Alamat', '');
-};
-
-const getReceiptItems = (order) => {
-  const orderTotal = parseCurrencyValue(order?.['TOTAL HARGA']);
-  const items = String(order?.['PESANAN'] || '')
-    .split('\n')
-    .map(line => {
-      const name = getProductName(line);
-      if (!name) return null;
-
-      const priceMatch = line.match(/=\s*(Rp\s*[\d.]+)/i);
-      const price = priceMatch ? parseCurrencyValue(priceMatch[1]) : orderTotal;
-
-      return {
-        name,
-        qty: getProductQty(line),
-        price: price || orderTotal
-      };
-    })
-    .filter(Boolean);
-
-  if (items.length > 0) return items;
-
-  return [{
-    name: 'Pesanan Creove',
-    qty: 1,
-    price: orderTotal
-  }];
-};
-
-function ReceiptItemVisual({ itemName }) {
-  const [isImageFailed, setIsImageFailed] = useState(false);
-  const imageSrc = RECEIPT_ITEM_IMAGE_MAP[itemName];
-
-  if (!imageSrc || isImageFailed) {
-    return (
-      <div className="receipt-product-visual" aria-hidden="true">
-        <div className="receipt-dessert-cup">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="receipt-product-visual">
-      <img
-        src={imageSrc}
-        alt={itemName}
-        className="receipt-product-image"
-        loading="lazy"
-        onError={() => setIsImageFailed(true)}
-      />
-    </div>
-  );
-}
-
-function ToastStack({ toasts }) {
-  const iconMap = {
-    success: 'fas fa-check',
-    error: 'fas fa-triangle-exclamation',
-    warning: 'fas fa-circle-exclamation',
-    info: 'fas fa-circle-info'
-  };
-
-  return (
-    <div className="toast-stack" aria-live="polite" aria-atomic="true">
-      {toasts.map(toast => (
-        <div className={`toast-card toast-${toast.type}`} key={toast.id}>
-          <span className="toast-icon">
-            <i className={iconMap[toast.type] || iconMap.info}></i>
-          </span>
-          <div className="toast-copy">
-            <strong>{toast.title}</strong>
-            {toast.message && <span>{toast.message}</span>}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+import Sidebar from '../components/layout/Sidebar';
+import WorkspaceTopbar from '../components/layout/WorkspaceTopbar';
+import ToastStack from '../components/ui/ToastStack';
+import DashboardHome from './DashboardHome';
+import Pesanan from './Pesanan';
+import Pengeluaran from './Pengeluaran';
+import Laporan from './Laporan';
 
 export default function Dashboard({ theme, toggleTheme }) {
   const [orders, setOrders] = useState([]);
@@ -769,21 +463,6 @@ Pembayaran: ${manualForm.pembayaran}`;
     }, 100);
   };
 
-  // --- FUNGSI PENCARI LINK WA SUPER AKURAT ---
-  const getWaLink = (row) => {
-    const rawWA = row['LINK NO WA'] || row['Link No WA'] || row['NO HP'] || row['LINK WA'] || row['Link WA'] || row['WA'] || row['Whatsapp'] || row['WHATSAPP'] || row['No WA'] || row['nomorHp'] || row['wa'] || '';
-    
-    if (!rawWA || rawWA === '-' || String(rawWA).trim() === '') return null;
-    
-    let cleanPhone = String(rawWA).replace(/\D/g, '');
-    if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.substring(1);
-    if (cleanPhone.startsWith('8')) cleanPhone = '62' + cleanPhone;
-    
-    if (cleanPhone.length < 8) return null;
-
-    return `https://wa.me/${cleanPhone}`;
-  };
-
   const handleEditFormChange = (e) => {
     const { name, value } = e.target;
     setEditForm(prev => ({ ...prev, [name]: value }));
@@ -1002,693 +681,112 @@ Pembayaran: ${manualForm.pembayaran}`;
           aria-label="Tutup menu"
         ></button>
       )}
-      <aside className="sidebar-panel" aria-label="Navigasi utama">
-        <div className="sidebar-brand">
-          <span className="brand-logo-mark sidebar-logo" role="img" aria-label="Logo Creove"></span>
-          <div>
-            <strong>Creov&eacute;</strong>
-            <span>Business Hub</span>
-          </div>
-          <button
-            type="button"
-            className="sidebar-close-btn"
-            onClick={() => setIsSidebarOpen(false)}
-            aria-label="Tutup menu"
-          >
-            <i className="fas fa-xmark"></i>
-          </button>
-        </div>
-
-        <nav className="sidebar-menu">
-          {MENU_ITEMS.map(item => (
-            <button
-              key={item.key}
-              type="button"
-              className={`sidebar-menu-item ${item.accentClass} ${activeMenu === item.key ? 'active' : ''}`}
-              onClick={() => handleMenuSelect(item.key)}
-              aria-current={activeMenu === item.key ? 'page' : undefined}
-              title={item.label}
-            >
-              <span className="sidebar-menu-icon"><i className={item.icon}></i></span>
-              <span className="sidebar-menu-copy">
-                <strong>{item.label}</strong>
-                <small>{item.eyebrow}</small>
-              </span>
-              <i className="fas fa-chevron-right sidebar-menu-arrow" aria-hidden="true"></i>
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-mini-card">
-          <span>Ringkasan</span>
-          <strong>{totalOrders} pesanan</strong>
-          <small>{formatRupiah(totalRevenue)}</small>
-        </div>
-      </aside>
+      <Sidebar
+        menuItems={MENU_ITEMS}
+        activeMenu={activeMenu}
+        onClose={() => setIsSidebarOpen(false)}
+        onSelectMenu={handleMenuSelect}
+        totalOrders={totalOrders}
+        totalRevenue={totalRevenue}
+      />
 
       <main className="dashboard-main">
-        <header className="workspace-topbar">
-          <div className="workspace-title-row">
-            <button
-              type="button"
-              onClick={handleSidebarToggle}
-              className="btn-outline-icon header-icon-btn sidebar-toggle-btn"
-              title="Buka/tutup menu"
-              aria-label="Buka/tutup menu"
-            >
-              <i className="fas fa-bars"></i>
-            </button>
-            <div className="workspace-heading">
-              <span className={`workspace-icon ${activeMenuMeta.accentClass}`}>
-                <i className={activeMenuMeta.icon}></i>
-              </span>
-              <div>
-                <small>{activeMenuMeta.eyebrow}</small>
-                <h1>{activeMenuMeta.title}</h1>
-              </div>
-            </div>
-          </div>
-          <div className="workspace-actions">
-            <div className="dashboard-date-pill workspace-date-pill">
-              <i className="far fa-calendar"></i>
-              <span>{dashboardDateLabel}</span>
-              <span className="dashboard-time-separator">{'\u2022'}</span>
-              <span className="dashboard-time-label">{dashboardTimeLabel}</span>
-            </div>
-            <button onClick={toggleTheme} className="btn-outline-icon header-icon-btn" title="Ganti tema" aria-label="Ganti tema">
-              <i className={theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon'}></i>
-            </button>
-            <button onClick={() => loadData({ notifyStart: true, notifySuccess: true })} className="btn-outline-primary header-refresh-btn">
-              <i className={`fas fa-sync-alt ${loading ? 'fa-spin' : ''}`}></i>
-              <span>{loading ? 'Memuat...' : 'Refresh'}</span>
-            </button>
-          </div>
-        </header>
+        <WorkspaceTopbar
+          activeMenuMeta={activeMenuMeta}
+          dateLabel={dashboardDateLabel}
+          timeLabel={dashboardTimeLabel}
+          theme={theme}
+          loading={loading}
+          onToggleSidebar={handleSidebarToggle}
+          onToggleTheme={toggleTheme}
+          onRefresh={() => loadData({ notifyStart: true, notifySuccess: true })}
+        />
 
         {activeMenu === 'dashboard' && (
-          <div className="dashboard-overview-content">
-            {newOrderNotice && (
-              <div className="new-order-notice">
-                <div>
-                  <strong>{newOrderNotice.count} pesanan baru masuk</strong>
-                  <span>Terbaru dari {newOrderNotice.latestName}</span>
-                </div>
-                <button onClick={() => setNewOrderNotice(null)} className="notice-close-btn">Tutup</button>
-              </div>
-            )}
-
-            <div className="summary-grid">
-              <div className="summary-card-modern">
-                <div className="icon-box-modern"><i className="fas fa-shopping-bag"></i></div>
-                <div className="info-modern"><span className="title-modern">Total Pesanan Aktif</span><h3>{totalOrders}</h3></div>
-              </div>
-              <div className="summary-card-modern">
-                <div className="icon-box-modern"><i className="fas fa-wallet"></i></div>
-                <div className="info-modern"><span className="title-modern">Total Pendapatan</span><h3>{formatRupiah(totalRevenue)}</h3></div>
-              </div>
-            </div>
-
-            <div className="status-summary-grid">
-              <button
-                className={`status-summary-card ${currentTab === 'all' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('pesanan'); setCurrentTab('all'); setCurrentPage(1); }}
-              >
-                <span className="status-dot status-all"><i className="fas fa-layer-group"></i></span>
-                <span>Semua</span>
-                <strong>{orders.length}</strong>
-              </button>
-              {STATUS_OPTIONS.map(status => (
-                <button
-                  key={status.key}
-                  className={`status-summary-card ${currentTab === status.key ? 'active' : ''}`}
-                  onClick={() => { setActiveMenu('pesanan'); setCurrentTab(status.key); setCurrentPage(1); }}
-                >
-                  <span className={`status-dot ${status.className}`}>{status.icon}</span>
-                  <span>{status.label}</span>
-                  <strong>{statusSummary[status.key]}</strong>
-                </button>
-              ))}
-            </div>
-
-            <div className="insight-grid">
-              <div className="insight-panel top-products-panel">
-                <div className="insight-heading">
-                  <span className="insight-heading-icon"><i className="fas fa-ranking-star"></i></span>
-                  <div>
-                    <h3>Produk Terlaris</h3>
-                    <span>Tidak termasuk pesanan batal</span>
-                  </div>
-                </div>
-                {topProducts.length > 0 ? (
-                  <div className="top-product-list">
-                    {topProducts.map((product, index) => (
-                      <div key={product.name} className="top-product-item">
-                        <span className="product-rank">{index + 1}</span>
-                        <div className="product-copy">
-                          <span className="product-name">{product.name}</span>
-                          <small>Terjual</small>
-                        </div>
-                        <strong><span>{product.qty}</span> pcs</strong>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p>Belum ada data produk.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeMenu !== 'dashboard' && activeMenu !== 'pesanan' && (
-          <section className="coming-soon-panel">
-            <div className="coming-soon-mark">
-              <span className={`coming-soon-icon ${activeMenuMeta.accentClass}`}>
-                <i className={activeMenuMeta.icon}></i>
-              </span>
-            </div>
-            <span className="coming-soon-kicker">{dashboardGreeting}, Admin</span>
-            <h2>{activeMenuMeta.title}</h2>
-            <p>Coming soon</p>
-          </section>
+          <DashboardHome
+            newOrderNotice={newOrderNotice}
+            onDismissNewOrderNotice={() => setNewOrderNotice(null)}
+            totalOrders={totalOrders}
+            totalRevenue={totalRevenue}
+            currentTab={currentTab}
+            onOpenOrdersTab={(tabKey) => {
+              setActiveMenu('pesanan');
+              setCurrentTab(tabKey);
+              setCurrentPage(1);
+            }}
+            orders={orders}
+            statusOptions={STATUS_OPTIONS}
+            statusSummary={statusSummary}
+            topProducts={topProducts}
+          />
         )}
 
         {activeMenu === 'pesanan' && (
-    <div className="dashboard-container legacy-dashboard-content">
-      {newOrderNotice && (
-        <div className="new-order-notice">
-          <div>
-            <strong>{newOrderNotice.count} pesanan baru masuk</strong>
-            <span>Terbaru dari {newOrderNotice.latestName}</span>
-          </div>
-          <button onClick={() => setNewOrderNotice(null)} className="notice-close-btn">Tutup</button>
-        </div>
-      )}
+          <Pesanan
+            newOrderNotice={newOrderNotice}
+            onDismissNewOrderNotice={() => setNewOrderNotice(null)}
+            currentTab={currentTab}
+            setCurrentTab={setCurrentTab}
+            setCurrentPage={setCurrentPage}
+            orders={orders}
+            statusOptions={STATUS_OPTIONS}
+            statusSummary={statusSummary}
+            setIsAddModalOpen={setIsAddModalOpen}
+            currentSearch={currentSearch}
+            setCurrentSearch={setCurrentSearch}
+            dateFilter={dateFilter}
+            setDateFilter={setDateFilter}
+            activeDatePreset={activeDatePreset}
+            handleDatePreset={handleDatePreset}
+            loading={loading}
+            paginatedOrders={paginatedOrders}
+            getStatusMeta={getStatusMeta}
+            getWaLink={getWaLink}
+            formatOrderDate={formatOrderDate}
+            formatOrderTime={formatOrderTime}
+            renderOrderLine={renderOrderLine}
+            parseCurrencyValue={parseCurrencyValue}
+            updateOrderStatus={updateOrderStatus}
+            handleOpenEditModal={handleOpenEditModal}
+            handlePreviewReceipt={handlePreviewReceipt}
+            safeCurrentPage={safeCurrentPage}
+            totalPages={totalPages}
+            isAddModalOpen={isAddModalOpen}
+            manualForm={manualForm}
+            handleFormChange={handleFormChange}
+            addOrderItem={addOrderItem}
+            receiptItemImageMap={RECEIPT_ITEM_IMAGE_MAP}
+            productOptions={PRODUCT_OPTIONS}
+            handleItemChange={handleItemChange}
+            handleItemBlur={handleItemBlur}
+            removeOrderItem={removeOrderItem}
+            manualOrderTotal={manualOrderTotal}
+            handleSaveOrder={handleSaveOrder}
+            savingOrder={savingOrder}
+            isEditModalOpen={isEditModalOpen}
+            editForm={editForm}
+            handleEditFormChange={handleEditFormChange}
+            setIsEditModalOpen={setIsEditModalOpen}
+            handleSaveEdit={handleSaveEdit}
+            savingEdit={savingEdit}
+            activeReceiptOrder={activeReceiptOrder}
+            receiptRef={receiptRef}
+            getReceiptItems={getReceiptItems}
+            formatReceiptCurrency={formatReceiptCurrency}
+            getReceiptField={getReceiptField}
+            getReceiptAddress={getReceiptAddress}
+            isReceiptModalOpen={isReceiptModalOpen}
+            receiptData={receiptData}
+            setIsReceiptModalOpen={setIsReceiptModalOpen}
+          />
+        )}
 
-      <div className="order-status-strip">
-        <button
-          className={`order-status-chip ${currentTab === 'all' ? 'active' : ''}`}
-          onClick={() => { setCurrentTab('all'); setCurrentPage(1); }}
-        >
-          <span className="order-status-icon status-all"><i className="fas fa-layer-group"></i></span>
-          <span>Semua</span>
-          <strong>{orders.length}</strong>
-        </button>
-        {STATUS_OPTIONS.map(status => (
-          <button
-            key={status.key}
-            className={`order-status-chip ${currentTab === status.key ? 'active' : ''}`}
-            onClick={() => { setCurrentTab(status.key); setCurrentPage(1); }}
-          >
-            <span className={`order-status-icon ${status.className}`}>{status.icon}</span>
-            <span>{status.label}</span>
-            <strong>{statusSummary[status.key]}</strong>
-          </button>
-        ))}
-      </div>
+        {activeMenu === 'pengeluaran' && (
+          <Pengeluaran greeting={dashboardGreeting} />
+        )}
 
-      {/* TABLE SECTION */}
-      <div className="table-container">
-        <div className="table-toolbar">
-          <h2>Daftar Pesanan Terbaru</h2>
-          <div className="table-toolbar-actions">
-            <button onClick={() => setIsAddModalOpen(true)} className="btn-primary-action">
-              <i className="fas fa-plus"></i> Tambah Pesanan
-            </button>
-            <div className="search-box"><i className="fas fa-search"></i>
-              <input
-                type="text"
-                placeholder="Cari nama, order ID..."
-                value={currentSearch}
-                onChange={e => {setCurrentSearch(e.target.value); setCurrentPage(1);}}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="date-filter-panel">
-          <div className="date-filter-fields">
-            <div>
-              <label>Dari Tanggal</label>
-              <input
-                type="date"
-                value={dateFilter.start}
-                onChange={(e) => { setDateFilter(prev => ({ ...prev, start: e.target.value })); setCurrentPage(1); }}
-              />
-            </div>
-            <div>
-              <label>Sampai Tanggal</label>
-              <input
-                type="date"
-                value={dateFilter.end}
-                onChange={(e) => { setDateFilter(prev => ({ ...prev, end: e.target.value })); setCurrentPage(1); }}
-              />
-            </div>
-          </div>
-          <div className="date-filter-actions">
-            <button className={activeDatePreset === 'today' ? 'active' : ''} onClick={() => handleDatePreset('today')}>Hari Ini</button>
-            <button className={activeDatePreset === 'week' ? 'active' : ''} onClick={() => handleDatePreset('week')}>7 Hari</button>
-            <button className={activeDatePreset === 'month' ? 'active' : ''} onClick={() => handleDatePreset('month')}>Bulan Ini</button>
-            <button className={activeDatePreset === 'all' ? 'active' : ''} onClick={() => handleDatePreset('all')}>Semua</button>
-          </div>
-        </div>
-
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Waktu</th>
-                <th>Order ID</th>
-                <th>Nama</th>
-                <th>Pesanan</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Edit</th>
-                <th>Struk</th>
-                <th>Hubungi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="9" className="loading"><i className="fas fa-spinner fa-spin"></i> Memuat data...</td></tr>
-              ) : paginatedOrders.length === 0 ? (
-                <tr><td colSpan="9" style={{ textAlign: 'center', padding: 20 }}>Tidak ada data yang cocok dengan pencarian/filter.</td></tr>
-              ) : (
-                paginatedOrders.map((row, idx) => {
-                 const statusMeta = getStatusMeta(row['STATUS']);
-                 const waLink = getWaLink(row);
-                 
-                 return (
-                  <tr key={idx}>
-                    <td className="order-time-cell">
-                      <div>{formatOrderDate(row['WAKTU'])}</div>
-                      {row['WAKTU'] && (
-                        <div className="order-time-value">
-                          {formatOrderTime(row['WAKTU'])}
-                        </div>
-                      )}
-                    </td>
-                    <td><strong>{row['ORDER ID']}</strong></td>
-                    <td><strong>{row['NAMA']}</strong></td>
-                    <td className="order-text-cell">
-                      {String(row['PESANAN'] || '').split('\n').map((line, lineIndex) => (
-                        <div key={lineIndex}>{renderOrderLine(line)}</div>
-                      ))}
-                    </td>
-                    <td className="order-total-cell">{formatRupiah(parseCurrencyValue(row['TOTAL HARGA']))}</td>
-                    <td>
-                      <select value={row['STATUS'] || 'Pending'} onChange={(e) => updateOrderStatus(row['ORDER ID'], e.target.value)} className={`status-select ${statusMeta.className}`}>
-                        {STATUS_OPTIONS.map(status => (
-                          <option key={status.key} value={status.label}>{status.icon} {status.label}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <button onClick={() => handleOpenEditModal(row)} className="icon-action-btn edit-action-btn" title="Edit Pesanan">
-                        <i className="fas fa-pen"></i>
-                      </button>
-                    </td>
-                    <td>
-                      <button onClick={() => handlePreviewReceipt(row)} className="icon-action-btn" title="Download Struk">
-                        <i className="fas fa-file-invoice"></i>
-                      </button>
-                    </td>
-                    <td>
-                      {waLink ? (
-                        <a href={waLink} target="_blank" rel="noreferrer" className="chat-link">
-                          <i className="fab fa-whatsapp"></i> Chat
-                        </a>
-                      ) : <span style={{ color: '#9CA3AF' }}>-</span>}
-                    </td>
-                  </tr>
-                )
-               })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* PAGINATION CONTROLS */}
-        <div className="pagination-container">
-             <button
-               disabled={safeCurrentPage === 1}
-               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-               className="page-btn"
-               aria-label="Halaman sebelumnya"
-             >
-               <i className="fas fa-chevron-left"></i>
-             </button>
-             <div className="page-indicator">
-               <span>Halaman</span>
-               <strong>{safeCurrentPage} / {totalPages}</strong>
-             </div>
-             <button
-               disabled={safeCurrentPage === totalPages}
-               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-               className="page-btn"
-               aria-label="Halaman selanjutnya"
-             >
-               <i className="fas fa-chevron-right"></i>
-             </button>
-        </div>
-      </div>
-
-      {/* MODAL TAMBAH PESANAN WA */}
-      {isAddModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-box order-modal themed-order-modal">
-            <div className="order-modal-hero">
-              <div className="order-modal-heading">
-                <span className="order-modal-icon"><i className="fas fa-cart-plus"></i></span>
-                <div>
-                  <span className="order-modal-kicker">Creove Order</span>
-                  <h3 className="modal-title">Tambah Pesanan Baru</h3>
-                </div>
-              </div>
-              <img src="/logo.png" alt="" className="order-modal-logo" aria-hidden="true" />
-            </div>
-
-            <div className="form-group-manual order-form-body">
-                <div className="field-stack">
-                  <label>Nama Pemesan</label>
-                  <input type="text" name="nama" value={manualForm.nama} onChange={handleFormChange} placeholder="Masukkan Nama Customer" />
-                </div>
-                
-                {/* PERBAIKAN: FORM TANGGAL DAN JAM */}
-                <div className="form-row">
-                    <div className="field-stack">
-                        <label>Tanggal</label>
-                        <input type="date" name="tanggal" value={manualForm.tanggal} onChange={handleFormChange} />
-                    </div>
-                    <div className="field-stack">
-                        <label>Jam</label>
-                        <input type="time" name="jam" value={manualForm.jam} onChange={handleFormChange} />
-                    </div>
-                </div>
-
-                <div className="product-section-header">
-                    <label>Daftar Produk</label>
-                    <button type="button" onClick={addOrderItem} className="btn-add-product">
-                      <i className="fas fa-plus"></i>
-                      <span>Tambah Produk</span>
-                    </button>
-                </div>
-
-                <div className="order-item-list">
-                  {manualForm.items.map((item, index) => (
-                    <div key={index} className="order-item-card">
-                      <div className="order-item-media">
-                        <img src={RECEIPT_ITEM_IMAGE_MAP[item.produk]} alt={item.produk} />
-                        <span>#{index + 1}</span>
-                      </div>
-
-                      <div className="order-item-content">
-                        <div className="form-row order-item-grid">
-                          <div className="field-stack">
-                            <label>Produk</label>
-                            <select value={item.produk} onChange={e => handleItemChange(index, 'produk', e.target.value)}>
-                              {PRODUCT_OPTIONS.map(product => (
-                                <option key={product} value={product}>{product}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="field-stack qty-field">
-                            <label>Qty</label>
-                            <input 
-                              type="number" 
-                              value={item.qty} 
-                              onChange={e => handleItemChange(index, 'qty', e.target.value)}
-                              onBlur={() => handleItemBlur(index, 'qty')}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="form-row order-price-row">
-                          <div className="field-stack">
-                            <label>Harga Template (Rp)</label>
-                            <input type="text" value={formatRupiah(parseCurrencyValue(item.harga))} disabled />
-                            {item.produk === 'Signature Layered Oreo' && (
-                              <div className="product-price-note">
-                                1 pcs = Rp 10.000, 3 pcs = Rp 25.000
-                              </div>
-                            )}
-                          </div>
-                          <div className="remove-item-wrap">
-                            <button
-                              type="button"
-                              onClick={() => removeOrderItem(index)}
-                              disabled={manualForm.items.length === 1}
-                              className="btn-remove-product"
-                            >
-                              <i className="fas fa-trash"></i>
-                              <span>Hapus</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="order-summary-strip">
-                    <div className="order-summary-pill">
-                      <span>Total Harga</span>
-                      <strong>{formatRupiah(manualOrderTotal)}</strong>
-                    </div>
-                    <div className="order-summary-pill">
-                      <span>Total Item</span>
-                      <strong>{manualForm.items.length} item</strong>
-                    </div>
-                </div>
-
-                <div className="form-row">
-                    <div className="field-stack"><label>Pengantaran</label>
-                      <select name="pengantaran" value={manualForm.pengantaran} onChange={handleFormChange}>
-                        <option value="Pick up">Pick up (Ambil Sendiri)</option>
-                        <option value="Delivery">COD (Area Sekitar)</option>
-                        <option value="Kurir (Free)">Kurir (Free)</option>
-                      </select>
-                    </div>
-                    <div className="field-stack"><label>Pembayaran</label>
-                      <select name="pembayaran" value={manualForm.pembayaran} onChange={handleFormChange}>
-                        <option value="Cash">Cash</option>
-                        <option value="Transfer">Transfer</option>
-                        <option value="Qris">Qris</option>
-                      </select>
-                    </div>
-                </div>
-                { (manualForm.pengantaran === 'Delivery' || manualForm.pengantaran === 'Kurir (Free)') && (
-                  <div className="form-row">
-                    <div className="field-stack full-width-field">
-                      <label>Alamat Pengantaran</label>
-                      <input type="text" name="alamat" value={manualForm.alamat} onChange={handleFormChange} placeholder="Masukkan alamat lengkap untuk pengantaran" />
-                    </div>
-                  </div>
-                )}
-                <div className="field-stack">
-                  <label>Nomor WhatsApp</label>
-                  <input type="text" name="wa" value={manualForm.wa} onChange={handleFormChange} placeholder="(Opsional)" />
-                </div>
-            </div>
-
-            <div className="modal-actions modal-actions-spaced">
-                <button onClick={() => setIsAddModalOpen(false)} className="btn-cancel">Batal</button>
-                <button onClick={handleSaveOrder} disabled={savingOrder} className="btn-primary-action">
-                  {savingOrder ? 'Menyimpan...' : 'Simpan Pesanan'}
-                </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL EDIT PESANAN */}
-      {isEditModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-box order-modal edit-order-modal">
-            <h3 className="modal-title"><i className="fas fa-pen"></i> Edit Pesanan</h3>
-            <div className="form-group-manual">
-              <label>Order ID</label>
-              <input type="text" value={editForm.orderId} disabled />
-
-              <label>Nama Pemesan</label>
-              <input type="text" name="nama" value={editForm.nama} onChange={handleEditFormChange} />
-
-              <div className="form-row">
-                <div>
-                  <label>Tanggal</label>
-                  <input type="date" name="tanggal" value={editForm.tanggal} onChange={handleEditFormChange} />
-                </div>
-                <div>
-                  <label>Jam</label>
-                  <input type="time" name="jam" value={editForm.jam} onChange={handleEditFormChange} />
-                </div>
-              </div>
-
-              <label>Isi Pesanan</label>
-              <textarea name="pesanan" value={editForm.pesanan} onChange={handleEditFormChange} rows="8" />
-
-              <div className="form-row">
-                <div>
-                  <label>Total Harga (Rp)</label>
-                  <input type="number" name="total" value={editForm.total} onChange={handleEditFormChange} />
-                </div>
-                <div>
-                  <label>Status</label>
-                  <select name="status" value={editForm.status} onChange={handleEditFormChange}>
-                    {STATUS_OPTIONS.map(status => (
-                      <option key={status.key} value={status.label}>{status.icon} {status.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <label>Nomor WhatsApp</label>
-              <input type="text" name="wa" value={editForm.wa} onChange={handleEditFormChange} />
-            </div>
-
-            <div className="modal-actions modal-actions-spaced">
-              <button onClick={() => setIsEditModalOpen(false)} className="btn-cancel">Batal</button>
-              <button onClick={handleSaveEdit} disabled={savingEdit} className="btn-primary-action">
-                {savingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TEMPLATE STRUK UNTUK RENDER (Hidden) */}
-      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-        {activeReceiptOrder && (() => {
-          const receiptItems = getReceiptItems(activeReceiptOrder);
-          const receiptTotal = formatReceiptCurrency(activeReceiptOrder['TOTAL HARGA']);
-          const pengantaran = getReceiptField(activeReceiptOrder, 'Pengantaran', 'Pick up');
-          const pembayaran = getReceiptField(activeReceiptOrder, 'Pembayaran', 'Cash');
-          const alamat = getReceiptAddress(activeReceiptOrder);
-
-          return (
-            <div ref={receiptRef} className="receipt-modern-container">
-              <div className="receipt-bg-shape receipt-bg-shape-left"></div>
-              <div className="receipt-bg-shape receipt-bg-shape-right"></div>
-              <div className="receipt-dot-grid receipt-dot-grid-left"></div>
-              <div className="receipt-dot-grid receipt-dot-grid-right"></div>
-
-              <div className="receipt-header">
-                <div className="receipt-logo-orbit">
-                  <span className="receipt-logo-main" role="img" aria-label="Logo Creove"></span>
-                </div>
-                <div className="receipt-spark receipt-spark-left" aria-hidden="true"></div>
-                <div className="receipt-spark receipt-spark-right" aria-hidden="true"></div>
-                <h2 className="receipt-brand">CREOVE</h2>
-                <p className="receipt-subtitle"><span></span>Bukti Pesanan Resmi<span></span></p>
-              </div>
-
-              <div className="receipt-info-card">
-                <div className="receipt-info-item">
-                  <span className="receipt-icon-bubble"><i className="fas fa-ticket"></i></span>
-                  <span className="receipt-info-label">Order ID</span>
-                  <strong>{activeReceiptOrder['ORDER ID']}</strong>
-                </div>
-                <div className="receipt-info-item">
-                  <span className="receipt-icon-bubble"><i className="fas fa-calendar-days"></i></span>
-                  <span className="receipt-info-label">Tanggal</span>
-                  <strong>{formatOrderDate(activeReceiptOrder['WAKTU'])}</strong>
-                </div>
-                <div className="receipt-info-item">
-                  <span className="receipt-icon-bubble"><i className="fas fa-user"></i></span>
-                  <span className="receipt-info-label">Nama</span>
-                  <strong>{activeReceiptOrder['NAMA'] || '-'}</strong>
-                </div>
-                <div className="receipt-info-item">
-                  <span className="receipt-icon-bubble"><i className="fas fa-clock"></i></span>
-                  <span className="receipt-info-label">Jam</span>
-                  <strong>{formatOrderTime(activeReceiptOrder['WAKTU']) || '-'}</strong>
-                </div>
-              </div>
-
-              <section className="receipt-order-card">
-                <div className="receipt-section-ribbon">Detail Pesanan</div>
-                {receiptItems.map((item, index) => (
-                  <div className="receipt-product-row" key={`${item.name}-${index}`}>
-                    <ReceiptItemVisual itemName={item.name} />
-                    <div className="receipt-product-copy">
-                      <h3>{item.name}</h3>
-                      <span>x{item.qty}</span>
-                    </div>
-                    <strong>{formatReceiptCurrency(item.price)}</strong>
-                  </div>
-                ))}
-                <div className="receipt-line-divider"></div>
-                <div className="receipt-total-row">
-                  <span>Total Akhir</span>
-                  <strong>{receiptTotal}</strong>
-                </div>
-              </section>
-
-              <div className="receipt-method-card">
-                <div className="receipt-method-item">
-                  <span className="receipt-icon-bubble"><i className="fas fa-motorcycle"></i></span>
-                  <span>Pengantaran</span>
-                  <strong>{pengantaran}</strong>
-                  {alamat && <small className="receipt-method-note">Alamat: {alamat}</small>}
-                </div>
-                <div className="receipt-method-item">
-                  <span className="receipt-icon-bubble"><i className="fas fa-wallet"></i></span>
-                  <span>Pembayaran</span>
-                  <strong>{pembayaran}</strong>
-                </div>
-              </div>
-
-              <div className="receipt-grand-total">
-                <div className="receipt-grand-icon">
-                  <i className="fas fa-receipt"></i>
-                  <span><i className="fas fa-check"></i></span>
-                </div>
-                <div className="receipt-grand-copy">
-                  <span>Total Akhir</span>
-                  <strong>{receiptTotal}</strong>
-                </div>
-              </div>
-
-              <div className="receipt-footer">
-                <div className="receipt-footer-heart">
-                  <span></span>
-                  <i className="fas fa-heart"></i>
-                  <span></span>
-                </div>
-                <p className="receipt-footer-text">Terima Kasih Telah Memesan!</p>
-                <small>Sampai jumpa di pesanan berikutnya</small>
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* MODAL PREVIEW STRUK GAMBAR */}
-      {isReceiptModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-box receipt-preview-modal">
-             <h3 className="modal-title"><i className="fas fa-receipt"></i> Preview Struk</h3>
-             <div className="receipt-preview-frame">
-                <img src={receiptData.url} alt="Struk" />
-             </div>
-             <div className="modal-actions receipt-preview-actions">
-                <button onClick={() => setIsReceiptModalOpen(false)} className="btn-cancel">
-                  Tutup
-                </button>
-                
-                {/* Perbaikan pada <a> tag dengan menambahkan padding, border-radius, dan flexbox */}
-                <a 
-                  href={receiptData.url} 
-                  download={receiptData.filename} 
-                  className="btn-primary-action"
-                >
-                  <i className="fas fa-download"></i> Download Gambar
-                </a>
-             </div>
-          </div>
-        </div>
-      )}
-    </div>
+        {activeMenu === 'laporan' && (
+          <Laporan greeting={dashboardGreeting} />
         )}
       </main>
     </div>
