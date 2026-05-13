@@ -13,6 +13,41 @@ const STATUS_OPTIONS = [
   { key: 'batal', label: 'Batal', icon: '❌', className: 'status-batal' }
 ];
 
+const MENU_ITEMS = [
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    eyebrow: 'Overview',
+    title: 'Dashboard',
+    icon: 'fas fa-chart-pie',
+    accentClass: 'menu-accent-blue'
+  },
+  {
+    key: 'pesanan',
+    label: 'Pesanan',
+    eyebrow: 'Order',
+    title: 'Pesanan',
+    icon: 'fas fa-bag-shopping',
+    accentClass: 'menu-accent-amber'
+  },
+  {
+    key: 'pengeluaran',
+    label: 'Pengeluaran',
+    eyebrow: 'Expense',
+    title: 'Pengeluaran',
+    icon: 'fas fa-receipt',
+    accentClass: 'menu-accent-green'
+  },
+  {
+    key: 'laporan',
+    label: 'Laporan',
+    eyebrow: 'Report',
+    title: 'Laporan',
+    icon: 'fas fa-file-lines',
+    accentClass: 'menu-accent-rose'
+  }
+];
+
 const PRODUCT_OPTIONS = [
   'Signature Layered Oreo',
   'Dubai Chewy Cookie Mini'
@@ -314,6 +349,9 @@ function ToastStack({ toasts }) {
 export default function Dashboard({ theme, toggleTheme }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [activeMenu, setActiveMenu] = useState('dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentSearch, setCurrentSearch] = useState('');
   const [currentTab, setCurrentTab] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -461,9 +499,33 @@ export default function Dashboard({ theme, toggleTheme }) {
     return () => window.clearInterval(intervalId);
   }, []);
 
+  useEffect(() => {
+    const desktopMedia = window.matchMedia('(min-width: 981px)');
+    const closeDrawerOnDesktop = () => {
+      if (desktopMedia.matches) setIsSidebarOpen(false);
+    };
+
+    closeDrawerOnDesktop();
+    desktopMedia.addEventListener('change', closeDrawerOnDesktop);
+
+    return () => desktopMedia.removeEventListener('change', closeDrawerOnDesktop);
+  }, []);
+
+  useEffect(() => {
+    if (!isSidebarOpen) return undefined;
+
+    const closeDrawerWithEscape = (event) => {
+      if (event.key === 'Escape') setIsSidebarOpen(false);
+    };
+
+    window.addEventListener('keydown', closeDrawerWithEscape);
+
+    return () => window.removeEventListener('keydown', closeDrawerWithEscape);
+  }, [isSidebarOpen]);
+
   // Lock background scroll when any modal is open (add / edit / receipt)
   useEffect(() => {
-    const modalOpen = isAddModalOpen || isEditModalOpen || isReceiptModalOpen;
+    const modalOpen = isAddModalOpen || isEditModalOpen || isReceiptModalOpen || isSidebarOpen;
     const prevOverflow = document.body.style.overflow;
     const prevPaddingRight = document.body.style.paddingRight;
 
@@ -477,7 +539,7 @@ export default function Dashboard({ theme, toggleTheme }) {
       document.body.style.overflow = prevOverflow || '';
       document.body.style.paddingRight = prevPaddingRight || '';
     };
-  }, [isAddModalOpen, isEditModalOpen, isReceiptModalOpen]);
+  }, [isAddModalOpen, isEditModalOpen, isReceiptModalOpen, isSidebarOpen]);
 
   const updateOrderStatus = async (orderId, newStatus) => {
     // Optimistic UI update (Langsung ganti di layar agar terasa responsif)
@@ -517,13 +579,37 @@ export default function Dashboard({ theme, toggleTheme }) {
       items: prev.items.map((item, itemIndex) => (
         itemIndex === index
           ? (() => {
-              const nextItem = { ...item, [field]: field === 'qty' ? Math.max(1, Number(value) || 1) : value };
-              nextItem.harga = getTemplateItemTotal(nextItem.produk, nextItem.qty);
+              let newValue = value;
+              // Allow empty value temporarily for user to clear and retype
+              if (field === 'qty') {
+                newValue = value === '' ? '' : Math.max(1, Number(value) || 1);
+              }
+              const nextItem = { ...item, [field]: newValue };
+              nextItem.harga = getTemplateItemTotal(nextItem.produk, nextItem.qty || 1);
               return nextItem;
             })()
           : item
       ))
     }));
+  };
+
+  const handleItemBlur = (index, field) => {
+    // Validate qty on blur to ensure minimum value
+    if (field === 'qty') {
+      setManualForm(prev => ({
+        ...prev,
+        items: prev.items.map((item, itemIndex) => (
+          itemIndex === index
+            ? (() => {
+                const finalQty = Math.max(1, Number(item.qty) || 1);
+                const nextItem = { ...item, qty: finalQty };
+                nextItem.harga = getTemplateItemTotal(nextItem.produk, nextItem.qty);
+                return nextItem;
+              })()
+            : item
+        ))
+      }));
+    }
   };
 
   const addOrderItem = () => {
@@ -884,46 +970,211 @@ Pembayaran: ${manualForm.pembayaran}`;
     timeZone: APP_TIME_ZONE
   }).format(currentDateTime));
   const dashboardGreeting = dashboardHour < 12
-    ? 'Good morning'
+    ? 'Selamat pagi'
     : dashboardHour < 17
-      ? 'Good afternoon'
-      : 'Good evening';
+      ? 'Selamat siang'
+      : 'Selamat malam';
+  const activeMenuMeta = MENU_ITEMS.find(item => item.key === activeMenu) || MENU_ITEMS[0];
+  const handleSidebarToggle = () => {
+    const isCompactViewport = window.matchMedia('(max-width: 980px)').matches;
+
+    if (isCompactViewport) {
+      setIsSidebarOpen(prev => !prev);
+      return;
+    }
+
+    setIsSidebarCollapsed(prev => !prev);
+  };
+  const handleMenuSelect = (menuKey) => {
+    setActiveMenu(menuKey);
+    setIsSidebarOpen(false);
+  };
 
   return (
     <>
     <ToastStack toasts={toasts} />
-    <div className="dashboard-container">
-      {/* HEADER NAVBAR */}
-      <div className="dashboard-header-panel">
-        <div className="header top-nav">
-          <h1 className="brand-title">
-            <span className="brand-logo-mark" role="img" aria-label="Logo Creove"></span>
-            Creov&eacute; Dashboard
-          </h1>
-          <div className="top-nav-actions">
+    <div className={`dashboard-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} ${isSidebarOpen ? 'sidebar-open' : ''}`}>
+      {isSidebarOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          onClick={() => setIsSidebarOpen(false)}
+          aria-label="Tutup menu"
+        ></button>
+      )}
+      <aside className="sidebar-panel" aria-label="Navigasi utama">
+        <div className="sidebar-brand">
+          <span className="brand-logo-mark sidebar-logo" role="img" aria-label="Logo Creove"></span>
+          <div>
+            <strong>Creov&eacute;</strong>
+            <span>Business Hub</span>
+          </div>
+          <button
+            type="button"
+            className="sidebar-close-btn"
+            onClick={() => setIsSidebarOpen(false)}
+            aria-label="Tutup menu"
+          >
+            <i className="fas fa-xmark"></i>
+          </button>
+        </div>
+
+        <nav className="sidebar-menu">
+          {MENU_ITEMS.map(item => (
+            <button
+              key={item.key}
+              type="button"
+              className={`sidebar-menu-item ${item.accentClass} ${activeMenu === item.key ? 'active' : ''}`}
+              onClick={() => handleMenuSelect(item.key)}
+              aria-current={activeMenu === item.key ? 'page' : undefined}
+              title={item.label}
+            >
+              <span className="sidebar-menu-icon"><i className={item.icon}></i></span>
+              <span className="sidebar-menu-copy">
+                <strong>{item.label}</strong>
+                <small>{item.eyebrow}</small>
+              </span>
+              <i className="fas fa-chevron-right sidebar-menu-arrow" aria-hidden="true"></i>
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-mini-card">
+          <span>Ringkasan</span>
+          <strong>{totalOrders} pesanan</strong>
+          <small>{formatRupiah(totalRevenue)}</small>
+        </div>
+      </aside>
+
+      <main className="dashboard-main">
+        <header className="workspace-topbar">
+          <div className="workspace-title-row">
+            <button
+              type="button"
+              onClick={handleSidebarToggle}
+              className="btn-outline-icon header-icon-btn sidebar-toggle-btn"
+              title="Buka/tutup menu"
+              aria-label="Buka/tutup menu"
+            >
+              <i className="fas fa-bars"></i>
+            </button>
+            <div className="workspace-heading">
+              <span className={`workspace-icon ${activeMenuMeta.accentClass}`}>
+                <i className={activeMenuMeta.icon}></i>
+              </span>
+              <div>
+                <small>{activeMenuMeta.eyebrow}</small>
+                <h1>{activeMenuMeta.title}</h1>
+              </div>
+            </div>
+          </div>
+          <div className="workspace-actions">
+            <div className="dashboard-date-pill workspace-date-pill">
+              <i className="far fa-calendar"></i>
+              <span>{dashboardDateLabel}</span>
+              <span className="dashboard-time-separator">{'\u2022'}</span>
+              <span className="dashboard-time-label">{dashboardTimeLabel}</span>
+            </div>
             <button onClick={toggleTheme} className="btn-outline-icon header-icon-btn" title="Ganti tema" aria-label="Ganti tema">
               <i className={theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon'}></i>
             </button>
             <button onClick={() => loadData({ notifyStart: true, notifySuccess: true })} className="btn-outline-primary header-refresh-btn">
               <i className={`fas fa-sync-alt ${loading ? 'fa-spin' : ''}`}></i>
-              <span>{loading ? 'Memuat...' : 'Refresh Data'}</span>
+              <span>{loading ? 'Memuat...' : 'Refresh'}</span>
             </button>
           </div>
-        </div>
-        <div className="dashboard-greeting-bar">
-          <div className="dashboard-greeting-copy">
-            <h2>{dashboardGreeting}, Admin <span aria-hidden="true">{'\u{1F44B}'}</span></h2>
-            <p>Berikut ringkasan pesanan dan pendapatan hari ini.</p>
-          </div>
-          <div className="dashboard-date-pill">
-            <i className="far fa-calendar"></i>
-            <span>{dashboardDateLabel}</span>
-            <span className="dashboard-time-separator">{'\u2022'}</span>
-            <span className="dashboard-time-label">{dashboardTimeLabel}</span>
-          </div>
-        </div>
-      </div>
+        </header>
 
+        {activeMenu === 'dashboard' && (
+          <div className="dashboard-overview-content">
+            {newOrderNotice && (
+              <div className="new-order-notice">
+                <div>
+                  <strong>{newOrderNotice.count} pesanan baru masuk</strong>
+                  <span>Terbaru dari {newOrderNotice.latestName}</span>
+                </div>
+                <button onClick={() => setNewOrderNotice(null)} className="notice-close-btn">Tutup</button>
+              </div>
+            )}
+
+            <div className="summary-grid">
+              <div className="summary-card-modern">
+                <div className="icon-box-modern"><i className="fas fa-shopping-bag"></i></div>
+                <div className="info-modern"><span className="title-modern">Total Pesanan Aktif</span><h3>{totalOrders}</h3></div>
+              </div>
+              <div className="summary-card-modern">
+                <div className="icon-box-modern"><i className="fas fa-wallet"></i></div>
+                <div className="info-modern"><span className="title-modern">Total Pendapatan</span><h3>{formatRupiah(totalRevenue)}</h3></div>
+              </div>
+            </div>
+
+            <div className="status-summary-grid">
+              <button
+                className={`status-summary-card ${currentTab === 'all' ? 'active' : ''}`}
+                onClick={() => { setActiveMenu('pesanan'); setCurrentTab('all'); setCurrentPage(1); }}
+              >
+                <span className="status-dot status-all"><i className="fas fa-layer-group"></i></span>
+                <span>Semua</span>
+                <strong>{orders.length}</strong>
+              </button>
+              {STATUS_OPTIONS.map(status => (
+                <button
+                  key={status.key}
+                  className={`status-summary-card ${currentTab === status.key ? 'active' : ''}`}
+                  onClick={() => { setActiveMenu('pesanan'); setCurrentTab(status.key); setCurrentPage(1); }}
+                >
+                  <span className={`status-dot ${status.className}`}>{status.icon}</span>
+                  <span>{status.label}</span>
+                  <strong>{statusSummary[status.key]}</strong>
+                </button>
+              ))}
+            </div>
+
+            <div className="insight-grid">
+              <div className="insight-panel top-products-panel">
+                <div className="insight-heading">
+                  <span className="insight-heading-icon"><i className="fas fa-ranking-star"></i></span>
+                  <div>
+                    <h3>Produk Terlaris</h3>
+                    <span>Tidak termasuk pesanan batal</span>
+                  </div>
+                </div>
+                {topProducts.length > 0 ? (
+                  <div className="top-product-list">
+                    {topProducts.map((product, index) => (
+                      <div key={product.name} className="top-product-item">
+                        <span className="product-rank">{index + 1}</span>
+                        <div className="product-copy">
+                          <span className="product-name">{product.name}</span>
+                          <small>Terjual</small>
+                        </div>
+                        <strong><span>{product.qty}</span> pcs</strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p>Belum ada data produk.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeMenu !== 'dashboard' && activeMenu !== 'pesanan' && (
+          <section className="coming-soon-panel">
+            <div className="coming-soon-mark">
+              <span className={`coming-soon-icon ${activeMenuMeta.accentClass}`}>
+                <i className={activeMenuMeta.icon}></i>
+              </span>
+            </div>
+            <span className="coming-soon-kicker">{dashboardGreeting}, Admin</span>
+            <h2>{activeMenuMeta.title}</h2>
+            <p>Coming soon</p>
+          </section>
+        )}
+
+        {activeMenu === 'pesanan' && (
+    <div className="dashboard-container legacy-dashboard-content">
       {newOrderNotice && (
         <div className="new-order-notice">
           <div>
@@ -934,66 +1185,26 @@ Pembayaran: ${manualForm.pembayaran}`;
         </div>
       )}
 
-      {/* SUMMARY WIDGETS */}
-      <div className="summary-grid">
-        <div className="summary-card-modern">
-          <div className="icon-box-modern"><i className="fas fa-shopping-bag"></i></div>
-          <div className="info-modern"><span className="title-modern">Total Pesanan Aktif</span><h3>{totalOrders}</h3></div>
-        </div>
-        <div className="summary-card-modern">
-          <div className="icon-box-modern"><i className="fas fa-wallet"></i></div>
-          <div className="info-modern"><span className="title-modern">Total Pendapatan</span><h3>{formatRupiah(totalRevenue)}</h3></div>
-        </div>
-      </div>
-
-      <div className="status-summary-grid">
+      <div className="order-status-strip">
         <button
-          className={`status-summary-card ${currentTab === 'all' ? 'active' : ''}`}
+          className={`order-status-chip ${currentTab === 'all' ? 'active' : ''}`}
           onClick={() => { setCurrentTab('all'); setCurrentPage(1); }}
         >
-          <span className="status-dot status-all"><i className="fas fa-layer-group"></i></span>
+          <span className="order-status-icon status-all"><i className="fas fa-layer-group"></i></span>
           <span>Semua</span>
           <strong>{orders.length}</strong>
         </button>
         {STATUS_OPTIONS.map(status => (
           <button
             key={status.key}
-            className={`status-summary-card ${currentTab === status.key ? 'active' : ''}`}
+            className={`order-status-chip ${currentTab === status.key ? 'active' : ''}`}
             onClick={() => { setCurrentTab(status.key); setCurrentPage(1); }}
           >
-            <span className={`status-dot ${status.className}`}>{status.icon}</span>
+            <span className={`order-status-icon ${status.className}`}>{status.icon}</span>
             <span>{status.label}</span>
             <strong>{statusSummary[status.key]}</strong>
           </button>
         ))}
-      </div>
-
-      <div className="insight-grid">
-        <div className="insight-panel top-products-panel">
-          <div className="insight-heading">
-            <span className="insight-heading-icon"><i className="fas fa-ranking-star"></i></span>
-            <div>
-              <h3>Produk Terlaris</h3>
-              <span>Tidak termasuk pesanan batal</span>
-            </div>
-          </div>
-          {topProducts.length > 0 ? (
-            <div className="top-product-list">
-              {topProducts.map((product, index) => (
-                <div key={product.name} className="top-product-item">
-                  <span className="product-rank">{index + 1}</span>
-                  <div className="product-copy">
-                    <span className="product-name">{product.name}</span>
-                    <small>Terjual</small>
-                  </div>
-                  <strong><span>{product.qty}</span> pcs</strong>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p>Belum ada data produk.</p>
-          )}
-        </div>
       </div>
 
       {/* TABLE SECTION */}
@@ -1203,7 +1414,12 @@ Pembayaran: ${manualForm.pembayaran}`;
                           </div>
                           <div className="field-stack qty-field">
                             <label>Qty</label>
-                            <input type="number" value={item.qty} onChange={e => handleItemChange(index, 'qty', e.target.value)} min="1" />
+                            <input 
+                              type="number" 
+                              value={item.qty} 
+                              onChange={e => handleItemChange(index, 'qty', e.target.value)}
+                              onBlur={() => handleItemBlur(index, 'qty')}
+                            />
                           </div>
                         </div>
 
@@ -1472,6 +1688,9 @@ Pembayaran: ${manualForm.pembayaran}`;
           </div>
         </div>
       )}
+    </div>
+        )}
+      </main>
     </div>
     </>
   );
