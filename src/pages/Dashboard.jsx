@@ -324,6 +324,7 @@ export default function Dashboard({ theme, toggleTheme }) {
   const knownOrderIdsRef = useRef(new Set());
   const hasLoadedOnceRef = useRef(false);
   const toastTimersRef = useRef([]);
+  const isLoadingOrdersRef = useRef(false);
   
   // States Modal Struk
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
@@ -374,8 +375,28 @@ export default function Dashboard({ theme, toggleTheme }) {
     };
   }, []);
 
-  const loadData = useCallback(async ({ silent = false, notifySuccess = false } = {}) => {
+  const loadData = useCallback(async ({ silent = false, notifySuccess = false, notifyStart = false } = {}) => {
+    if (isLoadingOrdersRef.current) {
+      if (!silent) {
+        showToast({
+          type: 'info',
+          title: 'Data sedang di-refresh',
+          message: 'Tunggu sebentar, data terbaru masih diambil.'
+        });
+      }
+      return;
+    }
+
+    isLoadingOrdersRef.current = true;
     if (!silent) setLoading(true);
+    if (notifyStart) {
+      showToast({
+        type: 'info',
+        title: 'Refresh data dimulai',
+        message: 'Mengambil pesanan terbaru dari server.'
+      });
+    }
+
     try {
       const data = await fetchOrders();
       const incomingIds = new Set(data.map(row => row['ORDER ID']).filter(Boolean));
@@ -412,6 +433,7 @@ export default function Dashboard({ theme, toggleTheme }) {
       }
     } finally {
       if (!silent) setLoading(false);
+      isLoadingOrdersRef.current = false;
     }
   }, [showToast]);
 
@@ -460,6 +482,11 @@ export default function Dashboard({ theme, toggleTheme }) {
   const updateOrderStatus = async (orderId, newStatus) => {
     // Optimistic UI update (Langsung ganti di layar agar terasa responsif)
     setOrders(prev => prev.map(o => (o['ORDER ID'] === orderId) ? { ...o, STATUS: newStatus } : o));
+    showToast({
+      type: 'info',
+      title: 'Menyimpan status',
+      message: `${orderId} sedang diubah ke ${newStatus}.`
+    });
     try {
       const response = await updateOrderStatusAPI(orderId, newStatus);
       await readApiResult(response);
@@ -559,6 +586,11 @@ export default function Dashboard({ theme, toggleTheme }) {
     }
 
     setSavingOrder(true);
+    showToast({
+      type: 'info',
+      title: 'Menyimpan pesanan',
+      message: 'Pesanan baru sedang dikirim ke server.'
+    });
     const newOrderId = 'CRV-' + Math.floor(100000 + Math.random() * 900000);
     const strWaktu = `${manualForm.tanggal}T${manualForm.jam}:00${APP_TIME_ZONE_OFFSET}`;
     const formatRpText = formatRupiah(manualOrderTotal);
@@ -630,6 +662,11 @@ Pembayaran: ${manualForm.pembayaran}`;
   // --- LOGIKA STRUK HTML2CANVAS ---
   const handlePreviewReceipt = (order) => {
     setActiveReceiptOrder(order);
+    showToast({
+      type: 'info',
+      title: 'Membuat struk',
+      message: `${order['ORDER ID']} sedang disiapkan.`
+    });
     setTimeout(async () => {
       if (!receiptRef.current) return;
       try {
@@ -693,6 +730,11 @@ Pembayaran: ${manualForm.pembayaran}`;
     }
 
     setSavingEdit(true);
+    showToast({
+      type: 'info',
+      title: 'Menyimpan perubahan',
+      message: `${editForm.orderId} sedang diperbarui.`
+    });
     const strWaktu = `${editForm.tanggal}T${editForm.jam}:00${APP_TIME_ZONE_OFFSET}`;
     const editData = {
       orderId: editForm.orderId,
@@ -862,9 +904,9 @@ Pembayaran: ${manualForm.pembayaran}`;
             <button onClick={toggleTheme} className="btn-outline-icon header-icon-btn" title="Ganti tema" aria-label="Ganti tema">
               <i className={theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon'}></i>
             </button>
-            <button onClick={() => loadData({ notifySuccess: true })} className="btn-outline-primary header-refresh-btn">
-              <i className="fas fa-sync-alt"></i>
-              <span>Refresh Data</span>
+            <button onClick={() => loadData({ notifyStart: true, notifySuccess: true })} className="btn-outline-primary header-refresh-btn">
+              <i className={`fas fa-sync-alt ${loading ? 'fa-spin' : ''}`}></i>
+              <span>{loading ? 'Memuat...' : 'Refresh Data'}</span>
             </button>
           </div>
         </div>
