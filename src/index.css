@@ -262,26 +262,79 @@ textarea:focus-visible {
 .sidebar-mini-card {
     margin-top: auto;
     display: grid;
-    gap: 5px;
+    gap: 12px;
     padding: 16px;
     border: 1px solid #DDE5FF;
-    border-radius: 14px;
-    background: linear-gradient(180deg, #FFFFFF, #F8FAFF);
+    border-radius: 16px;
+    background:
+        linear-gradient(135deg, rgba(47, 53, 255, 0.09), rgba(244, 185, 95, 0.12)),
+        #FFFFFF;
+    box-shadow: 0 14px 24px rgba(21, 30, 168, 0.08);
+    overflow: hidden;
 }
 
-.sidebar-mini-card span,
-.sidebar-mini-card small {
+.sidebar-mini-card-head {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.sidebar-mini-icon {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #DDE5FF;
+    border-radius: 10px;
+    background: #FFFFFF;
+    color: var(--accent);
+    font-size: 12px;
+    box-shadow: 0 8px 16px rgba(47, 53, 255, 0.10);
+}
+
+.sidebar-mini-card-head > span:not(.sidebar-mini-icon),
+.sidebar-mini-metric small,
+.sidebar-mini-revenue span {
     color: var(--text-muted);
     font-size: 12px;
     line-height: 1.25;
     font-weight: 800;
 }
 
-.sidebar-mini-card strong {
+.sidebar-mini-metric {
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.sidebar-mini-metric strong {
     color: var(--brand-ink);
-    font-size: 18px;
+    font-size: 30px;
+    line-height: 0.96;
+    font-weight: 900;
+}
+
+.sidebar-mini-revenue {
+    min-width: 0;
+    display: grid;
+    gap: 5px;
+    padding: 10px 12px;
+    border: 1px solid rgba(47, 53, 255, 0.12);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.sidebar-mini-revenue strong {
+    overflow: hidden;
+    color: var(--accent-strong);
+    font-size: 15px;
     line-height: 1.2;
     font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .dashboard-main {
@@ -2481,8 +2534,22 @@ body.dark-mode .sidebar-menu-item.active {
     background: linear-gradient(180deg, rgba(55, 65, 81, 0.92), rgba(31, 41, 55, 0.92));
 }
 body.dark-mode .sidebar-mini-card {
-    background: linear-gradient(180deg, #273244, #202A3A);
+    background:
+        linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(244, 185, 95, 0.10)),
+        #202A3A;
     border-color: #3F4A5F;
+    box-shadow: 0 16px 30px rgba(0, 0, 0, 0.24);
+}
+body.dark-mode .sidebar-mini-icon,
+body.dark-mode .sidebar-mini-revenue {
+    border-color: #3F4A5F;
+    background: rgba(17, 24, 39, 0.46);
+}
+body.dark-mode .sidebar-mini-icon {
+    color: #A8B1FF;
+}
+body.dark-mode .sidebar-mini-revenue strong {
+    color: #C7D2FE;
 }
 body.dark-mode .workspace-date-pill { background: #273244; }
 body.dark-mode .coming-soon-panel {

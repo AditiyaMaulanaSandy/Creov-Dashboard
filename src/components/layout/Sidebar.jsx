@@ -47,9 +47,18 @@ export default function Sidebar({
       </nav>
 
       <div className="sidebar-mini-card">
-        <span>Ringkasan</span>
-        <strong>{totalOrders} pesanan</strong>
-        <small>{formatRupiah(totalRevenue)}</small>
+        <div className="sidebar-mini-card-head">
+          <span className="sidebar-mini-icon"><i className="fas fa-chart-line"></i></span>
+          <span>Ringkasan</span>
+        </div>
+        <div className="sidebar-mini-metric">
+          <strong>{totalOrders}</strong>
+          <small>pesanan aktif</small>
+        </div>
+        <div className="sidebar-mini-revenue">
+          <span>Pendapatan</span>
+          <strong>{formatRupiah(totalRevenue)}</strong>
+        </div>
       </div>
     </aside>
   );
