@@ -919,6 +919,148 @@ textarea:focus-visible {
 .dashboard-kpi-card.kpi-expense { border-left-color: #10B981; }
 .dashboard-kpi-card.kpi-profit.positive { border-left-color: #14B8A6; }
 .dashboard-kpi-card.kpi-profit.negative { border-left-color: #F43F5E; }
+.product-revenue-panel {
+    min-width: 0;
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid #DDE5FF;
+    border-radius: 16px;
+    background: var(--card-bg);
+    box-shadow: var(--shadow-card);
+}
+.product-revenue-header {
+    align-items: flex-start;
+}
+.product-revenue-live {
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    border: 1px solid #BCEBD8;
+    border-radius: 999px;
+    background: #ECFDF5;
+    color: #047857;
+    font-size: 12px;
+    line-height: 1;
+    font-weight: 900;
+    white-space: nowrap;
+}
+.product-revenue-live i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10B981;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.14);
+}
+.product-revenue-grid {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.product-revenue-card {
+    --product-accent: #2F35FF;
+    --product-soft: #EEF2FF;
+    --product-border: #DDE5FF;
+    min-width: 0;
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--product-border);
+    border-left: 4px solid var(--product-accent);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #FFFFFF, #F8FAFF);
+    box-shadow: 0 10px 22px rgba(21, 30, 168, 0.06);
+}
+.product-revenue-card:nth-child(2) {
+    --product-accent: #A86207;
+    --product-soft: #FFF7E8;
+    --product-border: #FADAA5;
+    background: linear-gradient(180deg, #FFFFFF, #FFF9EF);
+    box-shadow: 0 10px 22px rgba(168, 98, 7, 0.07);
+}
+.product-revenue-top {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 50px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+}
+.product-revenue-media {
+    width: 50px;
+    height: 50px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px solid var(--product-border);
+    border-radius: 12px;
+    background: var(--product-soft);
+    color: var(--product-accent);
+    font-size: 19px;
+}
+.product-revenue-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.product-revenue-title {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+.product-revenue-title span {
+    color: var(--product-accent);
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+.product-revenue-title h4 {
+    margin: 0;
+    overflow: hidden;
+    color: var(--brand-ink);
+    font-size: 14px;
+    line-height: 1.25;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.product-revenue-value {
+    overflow-wrap: anywhere;
+    color: var(--brand-ink);
+    font-size: 25px;
+    line-height: 1.06;
+    font-weight: 900;
+}
+.product-revenue-meta {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.product-revenue-meta span {
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.25;
+    font-weight: 800;
+}
+.product-revenue-track {
+    height: 9px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--product-soft);
+}
+.product-revenue-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--product-accent);
+}
 .dashboard-main-grid {
     min-width: 0;
     display: grid;
@@ -2576,6 +2718,7 @@ body.dark-mode .dashboard-hero-btn.primary {
 }
 body.dark-mode .dashboard-kpi-card,
 body.dark-mode .dashboard-status-panel,
+body.dark-mode .product-revenue-panel,
 body.dark-mode .insight-panel {
     border-color: #4B5563;
     background: #1F2937;
@@ -2602,6 +2745,28 @@ body.dark-mode .icon-box-expense {
 body.dark-mode .icon-box-profit.negative {
     background: rgba(244, 63, 94, 0.15);
     color: #FDA4AF;
+}
+body.dark-mode .product-revenue-live {
+    border-color: #1D6E59;
+    background: rgba(16, 185, 129, 0.15);
+    color: #8AE4C4;
+}
+body.dark-mode .product-revenue-card {
+    --product-soft: rgba(59, 130, 246, 0.18);
+    --product-border: #33408C;
+    --product-accent: #A8B1FF;
+    background: linear-gradient(180deg, #273244, #202A3A);
+    box-shadow: none;
+}
+body.dark-mode .product-revenue-card:nth-child(2) {
+    --product-soft: rgba(245, 158, 11, 0.16);
+    --product-border: #7C4A12;
+    --product-accent: #FCD58D;
+    background: linear-gradient(180deg, #273244, #242A35);
+}
+body.dark-mode .product-revenue-title h4,
+body.dark-mode .product-revenue-value {
+    color: #F9FAFB;
 }
 body.dark-mode .menu-accent-blue {
     --menu-color: #A8B1FF;
@@ -3604,6 +3769,13 @@ body.dark-mode .themed-order-modal .btn-cancel {
     .dashboard-kpi-grid {
         margin-bottom: 0;
     }
+    .product-revenue-panel {
+        padding: 16px;
+        border-radius: 14px;
+    }
+    .product-revenue-grid {
+        grid-template-columns: 1fr;
+    }
     .summary-grid { grid-template-columns: 1fr; gap: 12px; margin-bottom: 20px; }
     .status-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .expense-chart-card {
@@ -3773,6 +3945,19 @@ body.dark-mode .themed-order-modal .btn-cancel {
         grid-template-columns: 1fr;
     }
     .dashboard-hero-profit strong {
+        font-size: 22px;
+    }
+    .product-revenue-panel {
+        padding: 14px;
+    }
+    .product-revenue-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .product-revenue-live {
+        align-self: flex-start;
+    }
+    .product-revenue-value {
         font-size: 22px;
     }
     .summary-card-modern {

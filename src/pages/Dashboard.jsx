@@ -628,42 +628,69 @@ Pembayaran: ${manualForm.pembayaran}`;
   };
 
   // --- SUMMARY, FILTERING & PENCARIAN ---
-  const { totalOrders, totalRevenue, statusSummary, topProducts, productSales } = useMemo(() => {
+  const { totalOrders, totalRevenue, statusSummary, topProducts, productSales, productRevenue } = useMemo(() => {
     let rev = 0; let count = 0;
     const summary = { pending: 0, diproses: 0, selesai: 0, batal: 0 };
-    const productMap = new Map();
+    const productMap = new Map(PRODUCT_OPTIONS.map(productName => [
+      productName,
+      { name: productName, qty: 0, revenue: 0 }
+    ]));
 
     orders.forEach(row => {
       const status = normalizeStatus(row['STATUS'] || row['Status']);
       const statusMeta = getStatusMeta(status);
       summary[statusMeta.key] += 1;
+      const rowTotal = parseCurrencyValue(row['TOTAL HARGA'] || row['Total Harga'] || row['Total']);
 
       if (!status.includes('batal')) {
-        rev += parseCurrencyValue(row['TOTAL HARGA'] || row['Total Harga'] || row['Total']);
+        rev += rowTotal;
         count++;
       }
 
       if (status.includes('batal')) return;
 
-      String(row['PESANAN'] || '').split('\n').forEach(line => {
+      const orderItems = String(row['PESANAN'] || '').split('\n').map(line => {
         const productName = getProductName(line);
-        if (!productName) return;
+        if (!productName) return null;
 
-        const current = productMap.get(productName) || 0;
-        productMap.set(productName, current + getProductQty(line));
+        const qty = getProductQty(line);
+        const linePriceMatch = line.match(/=\s*(Rp\s*[\d.]+)/i);
+        const templateTotal = getTemplateItemTotal(productName, qty);
+        const revenue = linePriceMatch ? parseCurrencyValue(linePriceMatch[1]) : templateTotal;
+
+        return { name: productName, qty, revenue };
+      }).filter(Boolean);
+
+      orderItems.forEach(item => {
+        const current = productMap.get(item.name) || { name: item.name, qty: 0, revenue: 0 };
+        const revenueFallback = orderItems.length === 1 && item.revenue <= 0 ? rowTotal : item.revenue;
+
+        productMap.set(item.name, {
+          name: item.name,
+          qty: current.qty + item.qty,
+          revenue: current.revenue + revenueFallback
+        });
       });
     });
 
-    const products = Array.from(productMap.entries())
-      .map(([name, qty]) => ({ name, qty }))
+    const products = Array.from(productMap.values())
+      .filter(product => product.qty > 0)
       .sort((a, b) => b.qty - a.qty);
+    const customProducts = Array.from(productMap.values())
+      .filter(product => !PRODUCT_OPTIONS.includes(product.name))
+      .sort((a, b) => b.revenue - a.revenue);
+    const revenueByProduct = [
+      ...PRODUCT_OPTIONS.map(productName => productMap.get(productName) || { name: productName, qty: 0, revenue: 0 }),
+      ...customProducts
+    ];
 
     return {
       totalOrders: count,
       totalRevenue: rev,
       statusSummary: summary,
       topProducts: products.slice(0, 3),
-      productSales: products
+      productSales: products,
+      productRevenue: revenueByProduct
     };
   }, [orders]);
 
@@ -837,6 +864,7 @@ Pembayaran: ${manualForm.pembayaran}`;
             statusSummary={statusSummary}
             topProducts={topProducts}
             productSales={productSales}
+            productRevenue={productRevenue}
             topExpenseCategories={topExpenseCategories}
           />
         )}

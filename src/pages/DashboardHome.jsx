@@ -1,8 +1,16 @@
 import { formatRupiah } from '../utils/formatters';
+import { RECEIPT_ITEM_IMAGE_MAP } from '../constants/dashboard';
 import NewOrderNotice from '../components/ui/NewOrderNotice';
 import PieChart from '../components/ui/PieChart';
 
 const PIE_COLORS = ['#2F35FF', '#10B981', '#F59E0B', '#EF4444', '#14B8A6', '#8B5CF6'];
+
+const getProductAlias = (productName) => {
+  if (/oreo/i.test(productName)) return 'Oreo';
+  if (/dubai/i.test(productName)) return 'Dubai';
+
+  return productName;
+};
 
 export default function DashboardHome({
   newOrderNotice,
@@ -22,6 +30,7 @@ export default function DashboardHome({
   statusSummary,
   topProducts,
   productSales,
+  productRevenue = [],
   topExpenseCategories
 }) {
   const maxFinanceValue = Math.max(totalRevenue, totalExpense, Math.abs(estimatedProfit), 1);
@@ -41,6 +50,7 @@ export default function DashboardHome({
     color: PIE_COLORS[index % PIE_COLORS.length]
   }));
   const totalProductQty = coloredProductSales.reduce((sum, item) => sum + item.qty, 0);
+  const maxProductRevenue = Math.max(...productRevenue.map(item => item.revenue), 1);
 
   return (
     <div className="dashboard-overview-content">
@@ -110,6 +120,50 @@ export default function DashboardHome({
           </div>
         </div>
       </div>
+
+      <section className="product-revenue-panel">
+        <div className="dashboard-section-header product-revenue-header">
+          <div>
+            <h3>Pendapatan Produk</h3>
+            <span>Total real-time dari pesanan non-batal</span>
+          </div>
+          <span className="product-revenue-live"><i></i>Live</span>
+        </div>
+
+        <div className="product-revenue-grid">
+          {productRevenue.map((product) => {
+            const contribution = totalRevenue > 0 ? Math.round((product.revenue / totalRevenue) * 100) : 0;
+            const barWidth = Math.max((product.revenue / maxProductRevenue) * 100, product.revenue > 0 ? 8 : 0);
+            const imageSrc = RECEIPT_ITEM_IMAGE_MAP[product.name];
+
+            return (
+              <article key={product.name} className="product-revenue-card">
+                <div className="product-revenue-top">
+                  <div className="product-revenue-media">
+                    {imageSrc ? (
+                      <img src={imageSrc} alt="" />
+                    ) : (
+                      <i className="fas fa-cookie-bite"></i>
+                    )}
+                  </div>
+                  <div className="product-revenue-title">
+                    <span>{getProductAlias(product.name)}</span>
+                    <h4 title={product.name}>{product.name}</h4>
+                  </div>
+                </div>
+                <strong className="product-revenue-value">{formatRupiah(product.revenue)}</strong>
+                <div className="product-revenue-meta">
+                  <span>{product.qty} pcs terjual</span>
+                  <span>{contribution}% kontribusi</span>
+                </div>
+                <div className="product-revenue-track" aria-hidden="true">
+                  <span className="product-revenue-fill" style={{ width: `${barWidth}%` }} />
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
 
       <div className="dashboard-main-grid">
         <section className="dashboard-finance-chart">
