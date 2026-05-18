@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const KODE_RAHASIA = "0203";
+const KODE_RAHASIA = "citracantik";
 
 export default function Login({ onLoginSuccess }) {
   const [pinInput, setPinInput] = useState('');
